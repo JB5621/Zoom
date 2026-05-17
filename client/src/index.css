@@ -1,0 +1,173 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@500;700;800&display=swap");
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "DM Sans", sans-serif;
+  background: linear-gradient(135deg, #0a0a0f 0%, #0d0d1a 25%, #0f0a1a 50%, #0a0f1a 100%);
+  color: #e8e8f0;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* Enhanced animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 128, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(0, 128, 255, 0.5);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* Smooth transitions */
+* {
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 128, 255, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 128, 255, 0.5);
+}
+
+/* ─── RESPONSIVE MEDIA QUERIES ─── */
+
+/* Mobile First — Base styles for mobile (320px and up) */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Ensure videos and iframes are responsive */
+  video,
+  iframe {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Touch target minimum size */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Tablets & Small Laptops (640px - 1024px) */
+@media (min-width: 641px) and (max-width: 1024px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+/* Large Screens (1025px and up) */
+@media (min-width: 1025px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+/* Landscape mode on mobile */
+@media (max-height: 500px) and (max-width: 640px) {
+  body {
+    overflow-y: auto;
+  }
+}
+
+/* Dark mode preference (respects system) */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(135deg, #0a0a0f 0%, #0d0d1a 25%, #0f0a1a 50%, #0a0f1a 100%);
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Touch device detection */
+@media (hover: none) and (pointer: coarse) {
+  button {
+    padding: 14px 16px;
+    min-height: 48px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
