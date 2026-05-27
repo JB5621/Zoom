@@ -11,28 +11,6 @@ import SharePicker from "./SharePicker";
 import RecordingIndicator from "./RecordingIndicator";
 import InterpretationPanel from "./InterpretationPanel";
 
-function gridColumns(n) {
-  if (window.innerWidth < 640) {
-    // Mobile: 1 column
-    if (n === 1) return 1;
-    if (n <= 2) return 1;
-    return 2;
-  } else if (window.innerWidth < 1024) {
-    // Tablet: 2 columns
-    if (n === 1) return 1;
-    if (n <= 2) return 2;
-    if (n <= 4) return 2;
-    return 2;
-  } else {
-    // Desktop: up to 4 columns
-    if (n === 1) return 1;
-    if (n <= 2) return 2;
-    if (n <= 4) return 2;
-    if (n <= 6) return 3;
-    return 4;
-  }
-}
-
 function PresentationView({ stream, presenterName, iAmPresenting, onStop }) {
   const ref = React.useRef(null);
   React.useEffect(() => { if (ref.current && stream) { ref.current.srcObject = stream; ref.current.play().catch(e => console.error("play error:", e)); } }, [stream]);
@@ -47,11 +25,11 @@ function PresentationView({ stream, presenterName, iAmPresenting, onStop }) {
           </div>
       }
       <div style={{ position:"absolute",top:14,left:14,display:"flex",alignItems:"center",gap:"8px",
-        background:"rgba(0,0,0,0.65)",backdropFilter:"blur(8px)",
+        background:"rgba(42,53,71,0.65)",backdropFilter:"blur(8px)",
         border:"1px solid rgba(255,255,255,0.1)",borderRadius:"10px",padding:"6px 12px" }}>
         <div style={{ width:8,height:8,borderRadius:"50%",background:"#22c55e",
           boxShadow:"0 0 8px #22c55e",animation:"pulse 1.5s infinite" }} />
-        <span style={{ color:"#e8e8f0",fontSize:"0.82rem",fontWeight:500 }}>
+        <span style={{ color:"var(--text-1)",fontSize:"0.82rem",fontWeight:500 }}>
           {iAmPresenting ? "You are presenting" : `${presenterName} is presenting`}
         </span>
       </div>
@@ -136,23 +114,23 @@ export default function Room() {
 
   if (error) return (
     <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",
-      justifyContent:"center",background:"#0a0a0f",gap:"16px",padding:"24px",textAlign:"center" }}>
+      justifyContent:"center",background:"linear-gradient(135deg,var(--light-6),var(--accent-2),var(--light-7))",gap:"16px",padding:"24px",textAlign:"center" }}>
       <span style={{ fontSize:"3rem" }}>📵</span>
       <h2 style={{ fontFamily:"'Syne',sans-serif",color:"#ef4444" }}>Camera / Microphone Error</h2>
-      <p style={{ color:"#6b7280",maxWidth:"400px" }}>{error}</p>
+      <p style={{ color:"var(--light-2)",maxWidth:"400px" }}>{error}</p>
       <button onClick={() => navigate("/")} style={{ marginTop:"8px",padding:"12px 28px",
-        background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",
-        borderRadius:"10px",color:"#e8e8f0",cursor:"pointer",fontFamily:"inherit",fontSize:"0.95rem" }}>
+        background:"var(--light-7)",border:"1px solid var(--light-4)",
+        borderRadius:"10px",color:"var(--light-1)",cursor:"pointer",fontFamily:"inherit",fontSize:"0.95rem" }}>
         ← Back to Home
       </button>
     </div>
   );
 
   return (
-    <div style={{ height:"100vh",display:"flex",flexDirection:"column",background:"#0a0a0f",overflow:"hidden" }}>
+    <div style={{ height:"100vh",display:"flex",flexDirection:"column",background:"linear-gradient(135deg,var(--light-6),var(--accent-2),var(--light-7))",overflow:"hidden" }}>
       {!isConnected && (
         <div style={{ position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",
-          background:"#f59e0b",color:"#000",padding:"6px 16px",borderRadius:"20px",
+          background:"var(--accent-5)",color:"var(--light-1)",padding:"6px 16px",borderRadius:"20px",
           fontSize:"0.8rem",fontWeight:600,zIndex:300 }}>Connecting…</div>
       )}
 
@@ -199,59 +177,55 @@ export default function Room() {
       </div>
 
       {/* Main */}
-      <div style={{ flex:1,display:"flex",overflow:"hidden",minHeight:0 }}>
+      <div className="room-main-shell" style={{ flex:1,display:"flex",overflow:"hidden",minHeight:0 }}>
         {someoneIsPresenting ? (
-          <div style={{ flex:1,display:"flex",gap:"clamp(8px, 2vw, 12px)",
+          <div className="room-presenting-layout" style={{ flex:1,display:"flex",gap:"clamp(8px, 2vw, 12px)",
             padding:"clamp(12px, 3vw, 16px) clamp(12px, 3vw, 16px) clamp(80px, 15vw, 90px)",
-            overflow:"hidden",minHeight:0,flexDirection:window.innerWidth < 640 ? "column" : "row",
-            marginRight:showChat && window.innerWidth > 640?"clamp(280px, 30vw, 340px)":0,
+            overflow:"hidden",minHeight:0,flexDirection:"row",
+            marginRight:showChat?"clamp(280px, 30vw, 340px)":0,
             transition:"margin-right 0.25s" }}>
             <PresentationView
               stream={iAmPresenting ? localStream : presenterPeer?.stream || null}
               presenterName={iAmPresenting ? userName : presenterPeer?.userName || "Presenter"}
               iAmPresenting={iAmPresenting} onStop={stopPresentation}
             />
-            <div style={{ width:window.innerWidth < 640 ? "100%" : "clamp(150px, 20vw, 200px)",
+            <div className="room-presenting-sidebar" style={{ width:"clamp(150px, 20vw, 200px)",
               display:"flex",flexDirection:"column",gap:"clamp(6px, 2vw, 10px)",overflowY:"auto",
               flexShrink:0 }}>
               {!iAmPresenting && (
                 <VideoPlayer stream={localStream} label={userName} isMuted={isMuted}
-                  isVideoOff={isVideoOff} isLocal={true} isAdmin={isAdmin}
+                  isVideoOff={isVideoOff} isLocal={true} isAdmin={isAdmin} speakerId={activeSpeakerId}
                   style={{ width:"100%",aspectRatio:"16/9",borderRadius:"clamp(8px, 2vw, 12px)" }} />
               )}
               {peerList.map(([sid,p]) => (
                 <VideoPlayer key={sid} peerId={sid} stream={p.stream}
                   label={p.userName||sid.slice(0,6)} isMuted={p.isMuted}
-                  isVideoOff={p.isVideoOff} isLocal={false} isAdmin={sid === adminId}
+                  isVideoOff={p.isVideoOff} isLocal={false} isAdmin={sid === adminId} speakerId={activeSpeakerId}
                   style={{ width:"100%",aspectRatio:"16/9",borderRadius:"clamp(8px, 2vw, 12px)" }} />
               ))}
             </div>
           </div>
         ) : (
-          <div style={{ flex:1,padding:"clamp(12px, 3vw, 20px)",
+          <div className="room-grid-layout" style={{ flex:1,padding:"clamp(12px, 3vw, 20px)",
             paddingBottom:"clamp(70px, 12vw, 90px)",overflow:"auto",
-            marginRight:showChat && window.innerWidth > 640?"clamp(280px, 30vw, 340px)":0,
+            marginRight:showChat?"clamp(280px, 30vw, 340px)":0,
             transition:"margin-right 0.25s",position:"relative" }}>
             <div style={{ display:"grid",
-              gridTemplateColumns:`repeat(${gridColumns(totalParticipants)},1fr)`,
+              gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",
               gap:"clamp(8px, 2vw, 12px)" }}>
               <VideoPlayer stream={localStream} label={userName} isMuted={isMuted}
-                isVideoOff={isVideoOff} isLocal={true} isAdmin={isAdmin}
+                isVideoOff={isVideoOff} isLocal={true} isAdmin={isAdmin} speakerId={activeSpeakerId}
                 style={{ minHeight:"clamp(120px, 30vh, 180px)",aspectRatio:"16/9" }} />
               {peerList.map(([sid,p]) => (
                 <VideoPlayer key={sid} peerId={sid} stream={p.stream}
                   label={p.userName||sid.slice(0,6)} isMuted={p.isMuted}
-                  isVideoOff={p.isVideoOff} isLocal={false} isAdmin={sid === adminId}
+                  isVideoOff={p.isVideoOff} isLocal={false} isAdmin={sid === adminId} speakerId={activeSpeakerId}
                   style={{ minHeight:"clamp(120px, 30vh, 180px)",aspectRatio:"16/9" }} />
               ))}
             </div>
             {peerList.length === 0 && (
               <div style={{ position:"absolute",top:"50%",left:"50%",
                 transform:"translate(-50%,-50%)",textAlign:"center",pointerEvents:"none" }}>
-                <p style={{ color:"#374151",fontSize:"clamp(0.8rem, 3vw, 0.9rem)" }}>Waiting for others to join…</p>
-                <p style={{ color:"#1f2937",fontSize:"clamp(0.7rem, 2vw, 0.8rem)",marginTop:"6px" }}>
-                  Share the room code <strong style={{ color:"#374151" }}>{roomId}</strong>
-                </p>
               </div>
             )}
           </div>
@@ -302,6 +276,23 @@ export default function Room() {
           onClose={() => setShowInterpretation(false)}
         />
       )}
+
+      {/* Hidden audio elements for interpreters — enable audio routing */}
+      {Array.from(interpreterIds).map(id => {
+        const interp = peers[id];
+        if (!interp?.stream) return null;
+        return (
+          <audio
+            key={id}
+            ref={ref => {
+              if (ref && interp.stream) ref.srcObject = interp.stream;
+            }}
+            autoPlay
+            data-peer-id={id}
+            style={{ display: "none" }}
+          />
+        );
+      })}
     </div>
   );
 }

@@ -3,12 +3,21 @@
 // ============================================================
 import React, { useRef, useEffect } from "react";
 
-export default function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, peerId, style }) {
+export default function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, peerId, style, speakerId }) {
   const videoRef = useRef(null);
 
   useEffect(() => {
     if (videoRef.current && stream) videoRef.current.srcObject = stream;
   }, [stream]);
+
+  // Apply speaker output to this video element
+  useEffect(() => {
+    if (videoRef.current && speakerId && videoRef.current.setSinkId) {
+      videoRef.current.setSinkId(speakerId).catch(e => 
+        console.warn("setSinkId not supported or failed:", e)
+      );
+    }
+  }, [speakerId]);
 
   const initials = (label || "?")
     .split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();

@@ -33,13 +33,13 @@ export default function InterpreterJoin() {
     page: {
       minHeight: "100vh", display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
-      background: "linear-gradient(135deg,#0a0a0f,#0d0d1a,#0a0f1a)",
+      background: "linear-gradient(135deg,var(--light-6),var(--accent-2),var(--light-7))",
       padding: "24px",
     },
     card: {
-      background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+      background: "rgba(255,255,255,0.82)", border: "1px solid var(--light-4)",
       borderRadius: "24px", padding: "40px", width: "100%", maxWidth: "420px",
-      backdropFilter: "blur(20px)", boxShadow: "0 25px 60px rgba(0,0,0,0.5)",
+      backdropFilter: "blur(20px)", boxShadow: "0 25px 60px rgba(90,106,133,0.18)",
       textAlign: "center",
     },
     logo: {
@@ -50,28 +50,28 @@ export default function InterpreterJoin() {
     },
     badge: {
       display: "inline-flex", alignItems: "center", gap: "8px",
-      background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)",
+      background: "var(--accent-4)", border: "1px solid var(--light-4)",
       borderRadius: "12px", padding: "10px 18px", marginBottom: "24px",
     },
     input: {
-      width: "100%", background: "rgba(255,255,255,0.06)",
-      border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px",
-      padding: "14px 18px", color: "#e8e8f0", fontSize: "0.95rem",
+      width: "100%", background: "var(--light-7)",
+      border: "1px solid var(--light-4)", borderRadius: "12px",
+      padding: "14px 18px", color: "var(--light-1)", fontSize: "0.95rem",
       outline: "none", fontFamily: "inherit", marginBottom: "14px", boxSizing: "border-box",
     },
     btn: {
       width: "100%", padding: "14px",
-      background: "linear-gradient(135deg,#22c55e,#16a34a)",
-      border: "none", borderRadius: "12px", color: "#fff",
+      background: "linear-gradient(135deg,var(--accent-3),var(--accent-1))",
+      border: "none", borderRadius: "12px", color: "var(--light-7)",
       fontFamily: "'Syne',sans-serif", fontWeight: 600, fontSize: "0.95rem",
       cursor: "pointer",
     },
-    error: { color: "#f87171", fontSize: "0.85rem", marginTop: "12px" },
+    error: { color: "var(--text-2)", fontSize: "0.85rem", marginTop: "12px" },
   };
 
   if (loading) return (
     <div style={S.page}>
-      <div style={{ ...S.card, color: "#6b7280" }}>Validating invite link…</div>
+      <div style={{ ...S.card, color: "var(--light-2)" }}>Validating invite link…</div>
     </div>
   );
 
@@ -80,8 +80,8 @@ export default function InterpreterJoin() {
       <div style={S.card}>
         <div style={S.logo}>ZoomClone</div>
         <div style={{ fontSize: "3rem", marginBottom: "16px" }}>❌</div>
-        <p style={{ color: "#f87171", marginBottom: "8px", fontWeight: 600 }}>Invalid Invite Link</p>
-        <p style={{ color: "#6b7280", fontSize: "0.85rem" }}>{error}</p>
+        <p style={{ color: "var(--text-2)", marginBottom: "8px", fontWeight: 600 }}>Invalid Invite Link</p>
+        <p style={{ color: "var(--light-2)", fontSize: "0.85rem" }}>{error}</p>
       </div>
     </div>
   );
@@ -91,25 +91,25 @@ export default function InterpreterJoin() {
       <div style={S.card}>
         <div style={S.logo}>ZoomClone</div>
         <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>🎙</div>
-        <h2 style={{ fontFamily: "'Syne',sans-serif", color: "#e8e8f0", marginBottom: "8px", fontSize: "1.2rem" }}>
+        <h2 style={{ fontFamily: "'Syne',sans-serif", color: "var(--text-1)", marginBottom: "8px", fontSize: "1.2rem" }}>
           Interpreter Invite
         </h2>
-        <p style={{ color: "#6b7280", fontSize: "0.85rem", marginBottom: "20px" }}>
+        <p style={{ color: "var(--light-2)", fontSize: "0.85rem", marginBottom: "20px" }}>
           You've been invited to interpret for this meeting
         </p>
 
         {channelInfo && (
           <div style={S.badge}>
             <span style={{ fontSize: "1rem" }}>🌐</span>
-            <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, color: "#4ade80", fontSize: "0.9rem" }}>
+            <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, color: "var(--light-1)", fontSize: "0.9rem" }}>
               {channelInfo.channelName}
             </span>
           </div>
         )}
 
-        <p style={{ color: "#9ca3af", fontSize: "0.8rem", marginBottom: "20px" }}>
-          You will hear the entire conference but will <strong style={{ color: "#e8e8f0" }}>not be visible</strong> in the main grid.
-          Speak in <strong style={{ color: "#4ade80" }}>{channelInfo?.targetLang}</strong> and participants who select your channel will hear you.
+        <p style={{ color: "var(--light-3)", fontSize: "0.8rem", marginBottom: "20px" }}>
+          You will hear the entire conference but will <strong style={{ color: "var(--text-1)" }}>not be visible</strong> in the main grid.
+          Speak in <strong style={{ color: "var(--text-1)" }}>{channelInfo?.targetLang}</strong> and participants who select your channel will hear you.
         </p>
 
         <input
@@ -118,13 +118,19 @@ export default function InterpreterJoin() {
           value={userName}
           onChange={e => setUserName(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleJoin()}
-          onFocus={e => e.target.style.borderColor = "rgba(34,197,94,0.5)"}
+          onFocus={e => e.target.style.borderColor = "var(--accent-3)"}
           onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.1)"}
+          onInput={e => e.target.style.color = 'var(--text-1)'}
         />
-        <button style={S.btn} onClick={handleJoin}>
+        <button
+          style={{ ...S.btn, background: 'linear-gradient(135deg, var(--accent-3) 0%, var(--accent-1) 100%)' }}
+          onClick={handleJoin}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover-bg)'; e.currentTarget.style.color = 'var(--light-1)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, var(--accent-3) 0%, var(--accent-1) 100%)'; e.currentTarget.style.color = 'var(--light-7)'; }}
+        >
           Join as Interpreter →
         </button>
-        {error && <div style={S.error}>{error}</div>}
+        {error && <div style={{ ...S.error, color: 'var(--text-2)' }}>{error}</div>}
       </div>
     </div>
   );

@@ -4,6 +4,35 @@
   box-sizing: border-box;
 }
 
+:root {
+  /* Text palette */
+  --text-1: #F5F9FD;
+  --text-2: #FFE9E3;
+  --text-3: #F8FAFC;
+  --text-4: #C8D7F1;
+  --text-5: #F4F8FF;
+  --text-6: #AEBDD7;
+
+  /* Light theme / UI accents */
+  --light-1: #2A3547;
+  --light-2: #5A6A85;
+  --light-3: #7C8FAC;
+  --light-4: #DFE5EF;
+  --light-5: #EAEFF4;
+  --light-6: #F2F6FA;
+  --light-7: #FFFFFF;
+  --accent-1: #5D87FF;
+  --accent-2: #ECF2FF;
+  --accent-3: #4570EA;
+  --accent-4: #EDFFF5;
+  --accent-5: #FEF5E5;
+  --light-8: #FBF2EF;
+  --accent-6: #539BFF;
+
+  /* Hover background for beautiful highlights */
+  --hover-bg: #F8FAFC;
+}
+
 html,
 body,
 #root {
@@ -15,8 +44,8 @@ body {
   margin: 0;
   padding: 0;
   font-family: "DM Sans", sans-serif;
-  background: linear-gradient(135deg, #0a0a0f 0%, #0d0d1a 25%, #0f0a1a 50%, #0a0f1a 100%);
-  color: #e8e8f0;
+  background: linear-gradient(135deg, var(--light-6) 0%, var(--accent-2) 45%, var(--light-7) 100%);
+  color: var(--text-1);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -75,6 +104,11 @@ textarea {
   transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
+/* Utility class for elements that should change background on hover to the requested color */
+.hover-bg-change:hover {
+  background: var(--hover-bg) !important;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
@@ -82,16 +116,16 @@ textarea {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--light-5);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 128, 255, 0.3);
+  background: var(--accent-1);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 128, 255, 0.5);
+  background: var(--accent-3);
 }
 
 /* ─── RESPONSIVE MEDIA QUERIES ─── */
@@ -145,7 +179,7 @@ textarea {
 /* Dark mode preference (respects system) */
 @media (prefers-color-scheme: dark) {
   body {
-    background: linear-gradient(135deg, #0a0a0f 0%, #0d0d1a 25%, #0f0a1a 50%, #0a0f1a 100%);
+    background: linear-gradient(135deg, var(--light-6) 0%, var(--accent-2) 45%, var(--light-7) 100%);
   }
 }
 
@@ -169,5 +203,82 @@ textarea {
   select,
   textarea {
     font-size: 16px;
+  }
+}
+
+/* Responsive app shells */
+.home-page {
+  width: 100%;
+}
+
+.home-card {
+  width: min(100%, 480px);
+}
+
+.room-main-shell {
+  min-width: 0;
+}
+
+.room-presenting-layout,
+.room-grid-layout {
+  min-width: 0;
+}
+
+.room-presenting-sidebar {
+  min-width: 0;
+}
+
+.chat-panel {
+  width: clamp(280px, 30vw, 340px);
+}
+
+@media (max-width: 1024px) {
+  .home-card {
+    width: min(100%, 560px);
+  }
+
+  .chat-panel {
+    width: min(100vw, 320px);
+  }
+}
+
+@media (max-width: 640px) {
+  .home-page {
+    padding: 16px;
+  }
+
+  .home-card {
+    width: 100%;
+    padding: 20px;
+  }
+
+  .home-join-row {
+    flex-direction: column;
+  }
+
+  .home-join-row button {
+    width: 100%;
+  }
+
+  .chat-panel {
+    width: 100vw !important;
+    border-left: none !important;
+    border-top: 1px solid var(--light-4) !important;
+  }
+
+  .room-presenting-layout {
+    flex-direction: column !important;
+    margin-right: 0 !important;
+  }
+
+  .room-presenting-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .room-grid-layout {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    margin-right: 0 !important;
   }
 }

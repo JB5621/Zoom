@@ -20,12 +20,13 @@ export default function Chat({ messages, onSend, mySocketId }) {
 
   return (
     <div
+      className="chat-panel"
       style={{
         position: "fixed",
         right: 0,
         top: 0,
         bottom: 0,
-        width: window.innerWidth < 640 ? "100%" : "clamp(280px, 30vw, 340px)",
+        width: "clamp(280px, 30vw, 340px)",
         background: "rgba(13,13,24,0.8)",
         backdropFilter: "blur(15px)",
         borderLeft: "1.5px solid rgba(0,128,255,0.2)",
@@ -97,7 +98,7 @@ export default function Chat({ messages, onSend, mySocketId }) {
               )}
               <div
                 style={{
-                  maxWidth: window.innerWidth < 640 ? "90%" : "85%",
+                  maxWidth: "min(85%, 28rem)",
                   padding: "clamp(8px, 2vw, 11px) clamp(10px, 2vw, 15px)",
                   borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
                   background: isMe

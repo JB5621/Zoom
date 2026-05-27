@@ -201,7 +201,7 @@ function LanguagePicker({ channels, selectedChannelId, onSelect }) {
       <div style={{ color:"#9ca3af",fontSize:"clamp(0.65rem, 1.5vw, 0.75rem)",
         fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",
         marginBottom:"clamp(10px, 2vw, 14px)" }}>
-        Choose a language to hear
+        Audio Source — Click to toggle
       </div>
 
       <button onClick={() => onSelect(null)} style={{
@@ -220,11 +220,12 @@ function LanguagePicker({ channels, selectedChannelId, onSelect }) {
             Original Audio
           </div>
           <div style={{ color:"#6b7280",fontSize:"clamp(0.7rem, 1.5vw, 0.78rem)" }}>
-            Hear all participants at full volume
+            Hear all participants — interpreters muted
           </div>
         </div>
         {!selectedChannelId && <span style={{ fontSize:"clamp(0.6rem, 1.5vw, 0.7rem)",
-          color:"#0080ff",fontWeight:700,whiteSpace:"nowrap" }}>ACTIVE</span>}
+          color:"#0080ff",fontWeight:700,whiteSpace:"nowrap",padding:"4px 8px",
+          background:"rgba(0,128,255,0.3)",borderRadius:"6px" }}>✓ ACTIVE</span>}
       </button>
 
       {channels.length === 0 && (
@@ -245,6 +246,7 @@ function LanguagePicker({ channels, selectedChannelId, onSelect }) {
             border:`1px solid ${active?"rgba(34,197,94,0.4)":"rgba(255,255,255,0.08)"}`,
             borderRadius:"14px",cursor:ch.active?"pointer":"not-allowed",
             textAlign:"left",fontFamily:"inherit",opacity:ch.active?1:0.5,transition:"all 0.15s",
+            minHeight:"44px",
           }}>
             <span style={{ fontSize:"1.6rem" }}>🌐</span>
             <div style={{ flex:1 }}>
@@ -254,7 +256,10 @@ function LanguagePicker({ channels, selectedChannelId, onSelect }) {
                 {ch.active ? `🎙 ${ch.interpreterName} is live` : "Waiting for interpreter…"}
               </div>
             </div>
-            {active && <span style={{ fontSize:"0.7rem",color:"#22c55e",fontWeight:700 }}>ACTIVE</span>}
+            {active && <span style={{ fontSize:"0.7rem",color:"#22c55e",fontWeight:700,
+              padding:"4px 8px",background:"rgba(34,197,94,0.3)",borderRadius:"6px" }}>✓ ACTIVE</span>}
+            {ch.active && !active && <span style={{ fontSize:"0.65rem",color:"#9ca3af",fontWeight:600,
+              padding:"4px 8px",background:"rgba(255,255,255,0.08)",borderRadius:"6px" }}>Click to switch</span>}
           </button>
         );
       })}
@@ -264,9 +269,14 @@ function LanguagePicker({ channels, selectedChannelId, onSelect }) {
           background:"rgba(251,146,60,0.1)",border:"1px solid rgba(251,146,60,0.3)",
           borderRadius:"12px",display:"flex",alignItems:"center",gap:"10px" }}>
           <span>🔉</span>
-          <span style={{ color:"#fb923c",fontSize:"0.82rem",fontWeight:500 }}>
-            Original speakers dimmed to 15% — interpreter at full volume
-          </span>
+          <div style={{ flex:1 }}>
+            <div style={{ color:"#fb923c",fontSize:"0.82rem",fontWeight:600 }}>
+              Interpreter mode active
+            </div>
+            <div style={{ color:"#d97706",fontSize:"0.7rem",marginTop:"2px" }}>
+              Only hearing interpreter — original speakers muted. Click "Original Audio" to switch back.
+            </div>
+          </div>
         </div>
       )}
     </div>

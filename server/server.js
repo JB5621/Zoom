@@ -16,6 +16,8 @@
 // ============================================================
 const express  = require("express");
 const http     = require("http");
+const https    = require("https");
+const fs       = require("fs");
 const { Server } = require("socket.io");
 const cors     = require("cors");
 const { v4: uuidv4 } = require("uuid");
@@ -29,7 +31,23 @@ app.use(express.json());
 const clientPath = path.join(__dirname, "../client/dist");
 app.use(express.static(clientPath));
 
-const server = http.createServer(app);
+function createServer() {
+  const useHttps = process.env.HTTPS === "true" || (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH);
+  if (useHttps) {
+    const keyPath = process.env.SSL_KEY_PATH;
+    const certPath = process.env.SSL_CERT_PATH;
+    if (!keyPath || !certPath) {
+      throw new Error("HTTPS is enabled but SSL_KEY_PATH or SSL_CERT_PATH is missing");
+    }
+    return https.createServer({
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath),
+    }, app);
+  }
+  return http.createServer(app);
+}
+
+const server = createServer();
 const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 
 // rooms: Map<roomId, Room>
@@ -355,4 +373,7 @@ app.get("*", (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`\n🚀 Server on http://localhost:${PORT}\n`));
+server.listen(PORT, () => {
+  const scheme = (process.env.HTTPS === "true" || (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH)) ? "https" : "http";
+  console.log(`\n🚀 Server on ${scheme}://localhost:${PORT}\n`);
+});
