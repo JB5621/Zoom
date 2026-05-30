@@ -1,8 +1,15 @@
 // ============================================================
-// Home.jsx — Landing page: create or join a meeting
+// Home.jsx — Authentication + landing page
 // ============================================================
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+const API_BASE = (import.meta.env.VITE_SERVER_URL || "").replace(/\/$/, "");
+
+function apiUrl(path) {
+  return API_BASE ? `${API_BASE}${path}` : path;
+}
 
 const S = {
   page: {
@@ -53,6 +60,35 @@ const S = {
     backdropFilter: "blur(30px)",
     boxShadow: "0 30px 70px rgba(69,112,234,0.14), inset 0 1px 0 rgba(255,255,255,0.95)",
     animation: "fadeInUp 0.8s ease-out 0.2s backwards",
+  },
+  authTabs: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: "8px",
+    marginBottom: "20px",
+    background: "#F2F6FA",
+    padding: "6px",
+    borderRadius: "14px",
+  },
+  authTab: {
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 14px",
+    background: "transparent",
+    color: "#5A6A85",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  authTabActive: {
+    background: "#FFFFFF",
+    color: "#2A3547",
+    boxShadow: "0 10px 20px rgba(69,112,234,0.10)",
+  },
+  authHint: {
+    color: "#5A6A85",
+    fontSize: "0.9rem",
+    lineHeight: 1.5,
+    marginBottom: "20px",
   },
   nameInput: {
     width: "100%",
@@ -159,23 +195,101 @@ const S = {
     borderRadius: "clamp(8px, 2vw, 10px)",
     border: "1px solid #FBF2EF",
   },
+  accountBar: {
+    width: "100%",
+    maxWidth: "min(480px, 90vw)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    marginBottom: "16px",
+    padding: "12px 16px",
+    borderRadius: "14px",
+    background: "rgba(255,255,255,0.78)",
+    border: "1px solid rgba(93,135,255,0.16)",
+    boxShadow: "0 16px 40px rgba(69,112,234,0.10)",
+  },
+  accountText: {
+    color: "#2A3547",
+    fontSize: "0.92rem",
+    fontWeight: 600,
+  },
+  accountSubtext: {
+    color: "#5A6A85",
+    fontSize: "0.78rem",
+    marginTop: "2px",
+  },
+  logoutBtn: {
+    border: "1px solid #C8D7F1",
+    background: "#EFF4FF",
+    color: "#4570EA",
+    borderRadius: "10px",
+    padding: "10px 14px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
 };
 
 export default function Home() {
-  const [userName, setUserName] = useState("");
+  const { user, loading: authLoading, submitting, login, register, logout } = useAuth();
+  const [mode, setMode] = useState("login");
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [authError, setAuthError] = useState("");
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (user?.name) {
+      setDisplayName((current) => current.trim() ? current : user.name);
+    }
+  }, [user]);
+
+  async function handleAuthSubmit() {
+    setAuthError("");
+    setError("");
+
+    const trimmedName = displayName.trim();
+    const trimmedEmail = email.trim();
+
+    if (mode === "register" && trimmedName.length < 2) {
+      setAuthError("Please enter your name.");
+      return;
+    }
+    if (!trimmedEmail) {
+      setAuthError("Please enter your email.");
+      return;
+    }
+    if (password.length < 6) {
+      setAuthError("Password must be at least 6 characters.");
+      return;
+    }
+
+    try {
+      const payload = { email: trimmedEmail, password };
+      if (mode === "register") payload.name = trimmedName;
+      const authUser = mode === "register" ? await register(payload) : await login(payload);
+      setDisplayName(authUser.name);
+      setEmail(authUser.email);
+      setPassword("");
+    } catch (err) {
+      setAuthError(err.message || "Could not sign you in.");
+    }
+  }
+
   async function handleCreate() {
-    if (!userName.trim()) return setError("Please enter your name first.");
+    if (!user) return setError("Please sign in first.");
+    const meetingName = displayName.trim() || user?.name || "";
+    if (!meetingName) return setError("Please enter your name first.");
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/rooms", { method: "POST" });
+      const res = await fetch(apiUrl("/api/rooms"), { method: "POST" });
       const { roomId } = await res.json();
-      navigate(`/room/${roomId}?name=${encodeURIComponent(userName.trim())}`);
+      navigate(`/room/${roomId}?name=${encodeURIComponent(meetingName)}`);
     } catch {
       setError("Failed to create room. Is the server running?");
     } finally {
@@ -184,20 +298,31 @@ export default function Home() {
   }
 
   async function handleJoin() {
-    if (!userName.trim()) return setError("Please enter your name first.");
+    if (!user) return setError("Please sign in first.");
+    const meetingName = displayName.trim() || user?.name || "";
+    if (!meetingName) return setError("Please enter your name first.");
     const code = roomCode.trim().toUpperCase();
     if (!code) return setError("Please enter a room code.");
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`/api/rooms/${code}`);
+      const res = await fetch(apiUrl(`/api/rooms/${code}`));
       if (!res.ok) return setError("Room not found. Check the code and try again.");
-      navigate(`/room/${code}?name=${encodeURIComponent(userName.trim())}`);
+      navigate(`/room/${code}?name=${encodeURIComponent(meetingName)}`);
     } catch {
       setError("Could not connect to server.");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div style={S.page}>
+        <div style={S.logo}>ZoomClone</div>
+        <p style={S.tagline}>Loading your session...</p>
+      </div>
+    );
   }
 
   return (
@@ -207,78 +332,171 @@ export default function Home() {
       <div style={{ ...S.glow, width: 350, height: 350, background: "rgba(69,112,234,0.14)", bottom: -80, left: -80 }} />
 
       <div style={S.logo}>ZoomClone</div>
-      <p style={S.tagline}>Crystal-clear video meetings with built-in interpretation.</p>
+      <p style={S.tagline}>{user ? `Welcome back, ${user.name}.` : "Sign in to create or join meetings."}</p>
 
-      <div className="home-card" style={S.card}>
-        <label style={S.label}>Your Name</label>
-        <input
-          style={S.nameInput}
-          placeholder="e.g. Alex Johnson"
-          value={userName}
-          onChange={(e) => setUserName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-          onFocus={(e) => Object.assign(e.target.style, S.nameInputFocus)}
-          onBlur={(e) => (e.target.style.borderColor = "#DFE5EF", e.target.style.boxShadow = "none")}
-        />
+      {!user ? (
+        <div className="home-card" style={S.card}>
+          <div style={S.authTabs}>
+            <button
+              style={{ ...S.authTab, ...(mode === "login" ? S.authTabActive : null) }}
+              onClick={() => setMode("login")}
+            >
+              Sign in
+            </button>
+            <button
+              style={{ ...S.authTab, ...(mode === "register" ? S.authTabActive : null) }}
+              onClick={() => setMode("register")}
+            >
+              Create account
+            </button>
+          </div>
 
-        <button
-          style={S.btnPrimary}
-          onClick={handleCreate}
-          disabled={loading}
-          onMouseEnter={(e) => {
-            e.target.style.transform = "translateY(-2px)";
-            e.target.style.boxShadow = "0 15px 40px rgba(93,135,255,0.34)";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.transform = "translateY(0)";
-            e.target.style.boxShadow = "0 12px 28px rgba(93,135,255,0.26)";
-          }}
-        >
-          {loading ? "⏳ Creating..." : "✨ New Meeting"}
-        </button>
+          <p style={S.authHint}>
+            Your account is stored in the server’s JSON database, so the same login works again after restart.
+          </p>
 
-        <div style={S.divider}>
-          <div style={S.dividerLine} />
-          <span style={S.dividerText}>or join existing</span>
-          <div style={S.dividerLine} />
-        </div>
+          {mode === "register" && (
+            <>
+              <label style={S.label}>Your Name</label>
+              <input
+                style={S.nameInput}
+                placeholder="e.g. Alex Johnson"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                onFocus={(e) => Object.assign(e.target.style, S.nameInputFocus)}
+                onBlur={(e) => (e.target.style.borderColor = "#DFE5EF", e.target.style.boxShadow = "none")}
+              />
+            </>
+          )}
 
-        <label style={S.label}>Room Code</label>
-        <div className="home-join-row" style={S.joinRow}>
+          <label style={S.label}>Email</label>
           <input
-            style={S.joinInput}
-            placeholder="e.g. A3F9B21C"
-            value={roomCode}
-            onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-            onFocus={(e) => (e.target.style.borderColor = "#5D87FF", e.target.style.boxShadow = "0 0 0 3px rgba(93,135,255,0.12)")}
+            style={S.nameInput}
+            placeholder="e.g. alex@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onFocus={(e) => Object.assign(e.target.style, S.nameInputFocus)}
             onBlur={(e) => (e.target.style.borderColor = "#DFE5EF", e.target.style.boxShadow = "none")}
-            maxLength={8}
           />
+
+          <label style={S.label}>Password</label>
+          <input
+            type="password"
+            style={S.nameInput}
+            placeholder="At least 6 characters"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAuthSubmit()}
+            onFocus={(e) => Object.assign(e.target.style, S.nameInputFocus)}
+            onBlur={(e) => (e.target.style.borderColor = "#DFE5EF", e.target.style.boxShadow = "none")}
+          />
+
           <button
-            style={S.btnSecondary}
-            onClick={handleJoin}
-            disabled={loading}
-            onMouseEnter={(e) => {
-              e.target.style.background = "#F8FAFC";
-              e.target.style.borderColor = "#C8D7F1";
-              e.target.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = "#EFF4FF";
-              e.target.style.borderColor = "#C8D7F1";
-              e.target.style.transform = "translateY(0)";
-            }}
+            style={S.btnPrimary}
+            onClick={handleAuthSubmit}
+            disabled={submitting}
           >
-            Join →
+            {submitting ? "⏳ Working..." : mode === "login" ? "Sign in" : "Create account"}
+          </button>
+
+          {authError && <div style={S.error}>⚠️ {authError}</div>}
+        </div>
+      ) : (
+        <div style={S.accountBar}>
+          <div>
+            <div style={S.accountText}>Signed in as {user.name}</div>
+            <div style={S.accountSubtext}>{user.email}</div>
+          </div>
+          <button
+            style={S.logoutBtn}
+            onClick={logout}
+            disabled={submitting}
+          >
+            Log out
           </button>
         </div>
+      )}
 
-        {error && <div style={S.error}>⚠️ {error}</div>}
-      </div>
+      {user && (
+        <div className="home-card" style={S.card}>
+          <label style={S.label}>Your Name</label>
+          <input
+            style={S.nameInput}
+            placeholder="e.g. Alex Johnson"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+            onFocus={(e) => Object.assign(e.target.style, S.nameInputFocus)}
+            onBlur={(e) => (e.target.style.borderColor = "#DFE5EF", e.target.style.boxShadow = "none")}
+          />
+
+          <button
+            style={S.btnPrimary}
+            onClick={handleCreate}
+            disabled={loading}
+            onMouseEnter={(e) => {
+              e.target.style.transform = "translateY(-2px)";
+              e.target.style.boxShadow = "0 15px 40px rgba(93,135,255,0.34)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = "translateY(0)";
+              e.target.style.boxShadow = "0 12px 28px rgba(93,135,255,0.26)";
+            }}
+          >
+            {loading ? "⏳ Creating..." : "✨ New Meeting"}
+          </button>
+
+          <div style={S.divider}>
+            <div style={S.dividerLine} />
+            <span style={S.dividerText}>or join existing</span>
+            <div style={S.dividerLine} />
+          </div>
+
+          <label style={S.label}>Room Code</label>
+          <div className="home-join-row" style={S.joinRow}>
+            <input
+              style={S.joinInput}
+              placeholder="e.g. A3F9B21C"
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+              onFocus={(e) => (e.target.style.borderColor = "#5D87FF", e.target.style.boxShadow = "0 0 0 3px rgba(93,135,255,0.12)")}
+              onBlur={(e) => (e.target.style.borderColor = "#DFE5EF", e.target.style.boxShadow = "none")}
+              maxLength={8}
+            />
+            <button
+              style={S.btnSecondary}
+              onClick={handleJoin}
+              disabled={loading}
+              onMouseEnter={(e) => {
+                e.target.style.background = "#F8FAFC";
+                e.target.style.borderColor = "#C8D7F1";
+                e.target.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = "#EFF4FF";
+                e.target.style.borderColor = "#C8D7F1";
+                e.target.style.transform = "translateY(0)";
+              }}
+            >
+              Join →
+            </button>
+          </div>
+
+          {error && <div style={S.error}>⚠️ {error}</div>}
+        </div>
+      )}
+
+      {!user && (
+        <div className="home-card" style={{ ...S.card, textAlign: "center" }}>
+          <p style={{ color: "#5A6A85", margin: 0, lineHeight: 1.6 }}>
+            Sign in above to unlock meeting creation, room joining, and the rest of the app.
+          </p>
+        </div>
+      )}
 
       <p style={{ color: "#5A6A85", fontSize: "0.78rem", marginTop: "40px", textAlign: "center" }}>
-        🚀 Powered by WebRTC · 🔐 No account needed
+        🚀 Powered by WebRTC · 🔐 Accounts stored in a local JSON database
       </p>
     </div>
   );

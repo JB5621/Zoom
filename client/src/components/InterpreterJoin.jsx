@@ -5,14 +5,16 @@
 // ============================================================
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export default function InterpreterJoin() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token");
+  const { user } = useAuth();
 
   const [channelInfo, setChannelInfo] = useState(null);
-  const [userName, setUserName] = useState("");
+  const [userName, setUserName] = useState(user?.name || "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -23,6 +25,12 @@ export default function InterpreterJoin() {
       .then(data => { setChannelInfo(data); setLoading(false); })
       .catch(() => { setError("This invite link is invalid or has expired."); setLoading(false); });
   }, [token]);
+
+  useEffect(() => {
+    if (user?.name && !userName) {
+      setUserName(user.name);
+    }
+  }, [user, userName]);
 
   function handleJoin() {
     if (!userName.trim()) return setError("Please enter your name.");

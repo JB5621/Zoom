@@ -15,7 +15,7 @@ A fully functional Zoom-like video conferencing app built with:
 - 🌐 **Language Interpretation** — Support for 35+ languages including Turkmen & Russian
 - 🎥 **Recording** — Record meetings locally
 - 🎨 **Modern UI** — Beautiful glassmorphic design with smooth animations
-- ⚡ **No Account** — Create or join instantly with room codes
+- 🔐 **Login System** — Local accounts stored in a JSON database on the server
 - 🔐 **Secure** — P2P encryption, no server recording
 
 ---
@@ -87,7 +87,7 @@ cd server
 npm run dev       # with hot-reload (nodemon)
 ```
 
-Server runs on: **http://localhost:5000**
+Server runs on: **https://localhost:5000** and serves the JSON-backed auth API at `/api/auth/*`
 
 ### Step 4 — Start the React App
 
@@ -99,6 +99,18 @@ npm run dev
 Client runs on: **https://localhost:5173**
 
 For other devices on the same network, use your computer's LAN IP: `https://YOUR_IP:5173`
+
+### One-command dev start
+
+From the workspace root, run:
+
+```bash
+npm start
+```
+
+That launches the backend on `https://localhost:5000` and the Vite client on `https://localhost:5173`.
+
+If port `5000` or `5173` is already in use, the launcher reuses the existing process instead of failing.
 
 ---
 

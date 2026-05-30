@@ -30,3 +30,16 @@ logs/
 
 # Runtime data
 .cache/
+
+# SSL certificates — machine-specific, never commit private keys
+server/certs/
+
+# Persistent user data — contains hashed passwords and session tokens
+server/data/
+
+# Stray directories
+client/server/
+
+# Editor / AI chat artefacts
+"server/## GitHub Copilot Chat.md"
+server/*.md

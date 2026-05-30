@@ -80,7 +80,7 @@ echo      npm install --production
 echo      node server.js
 echo.
 echo ✅ Server will serve:
-echo    - Frontend at http://localhost:5000/
-echo    - API at http://localhost:5000/api/*
-echo    - Socket.io at http://localhost:5000/socket.io
+echo    - Frontend at https://localhost:5000/
+echo    - API at https://localhost:5000/api/*
+echo    - Socket.io at https://localhost:5000/socket.io
 echo.

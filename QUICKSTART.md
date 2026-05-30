@@ -16,7 +16,7 @@ npm install --production
 node server.js
 ```
 
-Visit: **http://localhost:5000**
+Visit: **https://localhost:5000**
 
 ## Option 2: Using Start Scripts
 
@@ -41,7 +41,7 @@ docker build -t zoomclone .
 docker run -p 5000:5000 zoomclone
 ```
 
-Visit: **http://localhost:5000**
+Visit: **https://localhost:5000**
 
 ## Option 4: Deploy to Heroku
 
@@ -76,7 +76,7 @@ heroku logs --tail
 ./check-deploy.sh    # or check-deploy.bat on Windows
 
 # Or manually test
-curl http://localhost:5000/api/rooms -X POST
+curl https://localhost:5000/api/rooms -X POST
 ```
 
 ## Environment Variables

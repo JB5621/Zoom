@@ -168,7 +168,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         const socket = io(SERVER_URL, {
           reconnection: true,
           reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000,
+          reconnectionDelayMax: 5001,
           reconnectionAttempts: 10,
           transports: ['websocket', 'polling'],
           path: "/socket.io",

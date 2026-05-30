@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useWebRTC } from "../hooks/useWebRTC";
+import { useAuth } from "../context/AuthContext";
 import { useRecorder } from "../hooks/useRecorder";
 import { useInterpretation } from "../hooks/useInterpretation";
 import VideoPlayer from "./VideoPlayer";
@@ -55,7 +56,8 @@ export default function Room() {
   const { roomId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const userName = searchParams.get("name") || "Guest";
+  const { user } = useAuth();
+  const userName = searchParams.get("name") || user?.name || "Guest";
 
   const [showChat,           setShowChat]           = useState(false);
   const [showSettings,       setShowSettings]       = useState(false);

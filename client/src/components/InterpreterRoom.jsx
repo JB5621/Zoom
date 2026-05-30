@@ -8,13 +8,15 @@
 import React, { useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useWebRTC } from "../hooks/useWebRTC";
+import { useAuth } from "../context/AuthContext";
 import VideoPlayer from "./VideoPlayer";
 
 export default function InterpreterRoom() {
   const { token } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const userName = searchParams.get("name") || "Interpreter";
+  const { user } = useAuth();
+  const userName = searchParams.get("name") || user?.name || "Interpreter";
 
   // Join as interpreter — roomId is derived from token validation,
   // but useWebRTC handles it all via interpreterToken

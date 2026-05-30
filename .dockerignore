@@ -1,0 +1,40 @@
+# Dependencies (rebuilt inside image)
+node_modules
+*/node_modules
+
+# Built output (rebuilt in Stage 1)
+client/dist
+
+# Dev / local certs (production uses env-var paths or platform certs)
+server/certs
+
+# Persistent data (mount as a volume in production)
+server/data
+
+# Dev tooling
+scripts
+*.bat
+*.sh
+check-deploy.*
+
+# Git
+.git
+.gitignore
+
+# Docs
+*.md
+DEPLOYMENT*
+QUICKSTART*
+
+# Environment files (inject via platform env vars)
+.env
+.env.*
+server/.env
+
+# Editor
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db

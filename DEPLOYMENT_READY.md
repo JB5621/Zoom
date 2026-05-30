@@ -39,7 +39,7 @@ npm install --production
 PORT=5000 node server.js
 ```
 
-Visit: **http://localhost:5000**
+Visit: **https://localhost:5000**
 
 ### For Cloud Deployment
 1. Read: [QUICKSTART.md](./QUICKSTART.md)
@@ -181,16 +181,16 @@ NODE_ENV=production    # Set to 'production'
 
 ```bash
 # Health check
-curl http://localhost:5000/
+curl https://localhost:5000/
 
 # Create room
-curl -X POST http://localhost:5000/api/rooms
+curl -X POST https://localhost:5000/api/rooms
 
 # Check room
-curl http://localhost:5000/api/rooms/ABC12345
+curl https://localhost:5000/api/rooms/ABC12345
 
 # WebSocket test
-wscat -c ws://localhost:5000/socket.io/?EIO=4&transport=websocket
+wscat -c wss://localhost:5000/socket.io/?EIO=4&transport=websocket
 ```
 
 ---

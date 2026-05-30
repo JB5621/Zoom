@@ -1,0 +1,16 @@
+{
+  "name": "zoomclone-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "node scripts/dev-start.cjs",
+    "build": "npm install --prefix client && npm run build --prefix client",
+    "install:prod": "npm install --prefix server --omit=dev",
+    "start": "npm --prefix server start",
+    "start:dev-server": "npm --prefix server start",
+    "start:dev-client": "npm --prefix client run dev"
+  }
+}

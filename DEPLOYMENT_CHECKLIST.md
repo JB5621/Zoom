@@ -91,16 +91,16 @@
 ## Quick Verification
 ```bash
 # 1. Check server is running
-curl -I http://your-domain.com/
+curl -I https://your-domain.com/
 
 # 2. Create a test room
-curl -X POST http://your-domain.com/api/rooms
+curl -X POST https://your-domain.com/api/rooms
 
 # 3. Verify assets are served
-curl -I http://your-domain.com/assets/index-*.js
+curl -I https://your-domain.com/assets/index-*.js
 
 # 4. Check WebSocket connection
-wscat -c ws://your-domain.com/socket.io/?EIO=4&transport=websocket
+wscat -c wss://your-domain.com/socket.io/?EIO=4&transport=websocket
 ```
 
 ## Documentation
@@ -150,13 +150,13 @@ node server.js
 ### Verify Phase
 ```bash
 # Check server running
-curl http://localhost:5000/
+curl https://localhost:5000/
 
 # Check build files served
-curl http://localhost:5000/assets/index-*.js
+curl https://localhost:5000/assets/index-*.js
 
 # Create test room
-curl -X POST http://localhost:5000/api/rooms
+curl -X POST https://localhost:5000/api/rooms
 ```
 
 ---

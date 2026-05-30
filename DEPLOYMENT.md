@@ -32,7 +32,7 @@ npm install
 cd server
 npm run dev
 ```
-Server will run on `http://localhost:5000`
+Server will run on `https://localhost:5000`
 
 **Terminal 2 - Frontend:**
 ```bash

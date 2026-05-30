@@ -1,59 +1,241 @@
-// ============================================================
-// server.js — with proper Language Interpretation
-//
-// Roles:
-//   "participant" — normal user, visible in grid
-//   "interpreter" — joins via invite link, invisible in grid,
-//                   audio broadcast on their language channel
-//
-// Flow:
-//   1. Admin (first joiner) creates language channels
-//   2. Server generates a one-time interpreter token per channel
-//   3. Admin shares the invite link (contains token)
-//   4. Interpreter opens link → joins with role="interpreter"
-//   5. Server marks them invisible, notifies room
-//   6. Participants pick a language → hear interpreter at full vol
-// ============================================================
-const express  = require("express");
-const http     = require("http");
-const https    = require("https");
-const fs       = require("fs");
-const { Server } = require("socket.io");
-const cors     = require("cors");
+require("dotenv").config();
+
+const express      = require("express");
+const http         = require("http");
+const https        = require("https");
+const fs           = require("fs");
+const crypto       = require("crypto");
+const { Server }   = require("socket.io");
+const cors         = require("cors");
+const rateLimit    = require("express-rate-limit");
+const compression  = require("compression");
 const { v4: uuidv4 } = require("uuid");
-const path     = require("path");
+const path         = require("path");
 
 const app = express();
-app.use(cors({ origin: "*" }));
+app.use(compression());
+
+// CORS — restrict to configured origins in production
+const rawOrigins = process.env.ALLOWED_ORIGINS || "*";
+const corsOrigin = rawOrigins === "*"
+  ? "*"
+  : rawOrigins.split(",").map(o => o.trim()).filter(Boolean);
+const corsOptions = { origin: corsOrigin, methods: ["GET", "POST"] };
+app.use(cors(corsOptions));
+
 app.use(express.json());
+
+// Rate limiting — brute-force / spam protection
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+const roomLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,  // 1 hour
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Room creation limit reached, please try again later." },
+});
+
+// ── JSON auth store ─────────────────────────────────────────
+const dataDir = path.join(__dirname, "data");
+const usersDbPath = path.join(dataDir, "users.json");
+const sessionsDbPath = path.join(dataDir, "sessions.json");
+
+function ensureJsonFile(filePath, fallback) {
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, JSON.stringify(fallback, null, 2));
+  }
+}
+
+function readJsonFile(filePath, fallback) {
+  try {
+    ensureJsonFile(filePath, fallback);
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return fallback;
+  }
+}
+
+let users = readJsonFile(usersDbPath, []);
+let sessions = readJsonFile(sessionsDbPath, {});
+
+function saveUsers() {
+  fs.writeFileSync(usersDbPath, JSON.stringify(users, null, 2));
+}
+
+function saveSessions() {
+  fs.writeFileSync(sessionsDbPath, JSON.stringify(sessions, null, 2));
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function hashPassword(password, salt) {
+  return crypto.pbkdf2Sync(password, salt, 120000, 64, "sha512").toString("hex");
+}
+
+function createPasswordRecord(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  return {
+    passwordSalt: salt,
+    passwordHash: hashPassword(password, salt),
+  };
+}
+
+function verifyPassword(user, password) {
+  const hash = hashPassword(password, user.passwordSalt);
+  return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(user.passwordHash, "hex"));
+}
+
+function sanitizeUser(user) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    createdAt: user.createdAt,
+  };
+}
+
+function createSession(userId) {
+  const token = `${uuidv4()}${uuidv4()}`;
+  sessions[token] = {
+    userId,
+    createdAt: new Date().toISOString(),
+  };
+  saveSessions();
+  return token;
+}
+
+function getTokenFromRequest(req) {
+  const header = req.headers.authorization || req.headers["x-auth-token"] || "";
+  if (header.startsWith("Bearer ")) return header.slice(7).trim();
+  return String(header).trim();
+}
+
+function getUserFromToken(token) {
+  const session = sessions[token];
+  if (!session) return null;
+  return users.find(user => user.id === session.userId) || null;
+}
+
+function requireAuth(req, res, next) {
+  const token = getTokenFromRequest(req);
+  const user = token ? getUserFromToken(token) : null;
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  req.authUser = user;
+  req.authToken = token;
+  next();
+}
 
 // ── Production: Serve static client files ──────────────────
 const clientPath = path.join(__dirname, "../client/dist");
 app.use(express.static(clientPath));
 
 function createServer() {
-  const useHttps = process.env.HTTPS === "true" || (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH);
+  const defaultKey = path.join(__dirname, 'certs', 'localhost-key.pem');
+  const defaultCert = path.join(__dirname, 'certs', 'localhost.pem');
+  const keyPath = process.env.SSL_KEY_PATH || (fs.existsSync(defaultKey) ? defaultKey : null);
+  const certPath = process.env.SSL_CERT_PATH || (fs.existsSync(defaultCert) ? defaultCert : null);
+  const useHttps = process.env.HTTPS === 'true' || (keyPath && certPath);
+
   if (useHttps) {
-    const keyPath = process.env.SSL_KEY_PATH;
-    const certPath = process.env.SSL_CERT_PATH;
     if (!keyPath || !certPath) {
-      throw new Error("HTTPS is enabled but SSL_KEY_PATH or SSL_CERT_PATH is missing");
+      throw new Error('HTTPS is enabled but SSL key/cert paths are missing');
     }
     return https.createServer({
       key: fs.readFileSync(keyPath),
       cert: fs.readFileSync(certPath),
     }, app);
   }
+
   return http.createServer(app);
 }
 
 const server = createServer();
-const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
+const io = new Server(server, { cors: corsOptions });
 
 // rooms: Map<roomId, Room>
 // interpreterTokens: Map<token, { roomId, channelId, used: false }>
 const rooms = new Map();
 const interpreterTokens = new Map();
+
+// ── REST: Auth ───────────────────────────────────────────────
+app.post("/api/auth/register", authLimiter, (req, res) => {
+  const name = String(req.body?.name || "").trim();
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  console.log(`[AUTH] Register attempt: ${email}`);
+
+  if (name.length < 2) return res.status(400).json({ error: "Name must be at least 2 characters." });
+  if (!email || !email.includes("@")) return res.status(400).json({ error: "Enter a valid email address." });
+  if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters." });
+  if (users.some(user => user.email === email)) {
+    return res.status(409).json({ error: "An account with that email already exists." });
+  }
+
+  const { passwordSalt, passwordHash } = createPasswordRecord(password);
+  const user = {
+    id: uuidv4(),
+    name,
+    email,
+    passwordSalt,
+    passwordHash,
+    createdAt: new Date().toISOString(),
+  };
+
+  users.push(user);
+  saveUsers();
+  console.log(`[AUTH] Registered: ${email} -> id=${user.id}`);
+
+  const token = createSession(user.id);
+  res.status(201).json({ token, user: sanitizeUser(user) });
+});
+
+app.post("/api/auth/login", authLimiter, (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  console.log(`[AUTH] Login attempt: ${email}`);
+
+  const user = users.find(entry => entry.email === email);
+  if (!user) return res.status(401).json({ error: "Invalid email or password." });
+
+  let passwordMatches = false;
+  try {
+    passwordMatches = verifyPassword(user, password);
+  } catch {
+    passwordMatches = false;
+  }
+
+  if (!passwordMatches) return res.status(401).json({ error: "Invalid email or password." });
+
+  const token = createSession(user.id);
+  console.log(`[AUTH] Login success: ${email} -> token=${token.slice(0,8)}...`);
+  res.json({ token, user: sanitizeUser(user) });
+});
+
+// DEV: list users (sanitized) — only when not in production
+app.get("/api/auth/_debug/users", (req, res) => {
+  if (process.env.NODE_ENV === "production") return res.status(404).end();
+  res.json(users.map(u => sanitizeUser(u)));
+});
+
+app.get("/api/auth/me", requireAuth, (req, res) => {
+  res.json({ user: sanitizeUser(req.authUser) });
+});
+
+app.post("/api/auth/logout", requireAuth, (req, res) => {
+  delete sessions[req.authToken];
+  saveSessions();
+  res.json({ ok: true });
+});
 
 // ── Helpers ───────────────────────────────────────────────────
 function getRoom(roomId) { return rooms.get(roomId?.toUpperCase()); }
@@ -76,7 +258,7 @@ function broadcastInterpretation(roomId) {
 }
 
 // ── REST: Create room ─────────────────────────────────────────
-app.post("/api/rooms", (req, res) => {
+app.post("/api/rooms", roomLimiter, (req, res) => {
   const roomId = uuidv4().slice(0, 8).toUpperCase();
   rooms.set(roomId, {
     id: roomId,
@@ -372,8 +554,21 @@ app.get("*", (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT || 5000);
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`\n❌ Port ${PORT} is already in use.`);
+    console.error(`Stop the process using ${PORT} or start this server with a different PORT value.`);
+    process.exit(1);
+  }
+  throw err;
+});
+
 server.listen(PORT, () => {
   const scheme = (process.env.HTTPS === "true" || (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH)) ? "https" : "http";
   console.log(`\n🚀 Server on ${scheme}://localhost:${PORT}\n`);
+  console.log(`[DATA] users: ${usersDbPath}`);
+  console.log(`[DATA] sessions: ${sessionsDbPath}`);
+  console.log(`[DATA] usersCount=${Array.isArray(users)?users.length:0} sessionsCount=${Object.keys(sessions||{}).length}`);
 });
