@@ -3,6 +3,7 @@
 // Shows: red dot + timer + pause + stop buttons
 // ============================================================
 import React from "react";
+import { PauseIcon, PlayIcon, StopSquare } from "./icons";
 
 export default function RecordingIndicator({
   isRecording,
@@ -24,12 +25,10 @@ export default function RecordingIndicator({
         display: "flex",
         alignItems: "center",
         gap: "clamp(6px, 1.5vw, 10px)",
-        background: "rgba(10,10,20,0.92)",
-        backdropFilter: "blur(12px)",
-        border: `1px solid ${isPaused ? "rgba(251,146,60,0.5)" : "rgba(239,68,68,0.5)"}`,
-        borderRadius: "clamp(10px, 2vw, 14px)",
+        background: "rgba(17,24,39,0.92)",
+        border: `1px solid ${isPaused ? "rgba(217,119,6,0.5)" : "rgba(220,38,38,0.5)"}`,
+        borderRadius: "10px",
         padding: "clamp(6px, 1.5vw, 8px) clamp(10px, 2vw, 14px) clamp(6px, 1.5vw, 8px) clamp(8px, 2vw, 12px)",
-        boxShadow: `0 8px 32px ${isPaused ? "rgba(251,146,60,0.2)" : "rgba(239,68,68,0.25)"}`,
         animation: "slideDown 0.25s ease",
         flexWrap: "wrap",
       }}
@@ -51,20 +50,18 @@ export default function RecordingIndicator({
           width: "clamp(8px, 1.5vw, 10px)",
           height: "clamp(8px, 1.5vw, 10px)",
           borderRadius: "50%",
-          background: isPaused ? "#fb923c" : "#ef4444",
+          background: isPaused ? "#D97706" : "#DC2626",
           flexShrink: 0,
           animation: isPaused ? "none" : "blink 1.2s ease infinite",
-          boxShadow: isPaused ? "0 0 6px #fb923c" : "0 0 8px #ef4444",
         }}
       />
 
       {/* Label */}
       <span
         style={{
-          color: "#e8e8f0",
+          color: "#F9FAFB",
           fontSize: "clamp(0.7rem, 1.5vw, 0.82rem)",
           fontWeight: 600,
-          fontFamily: "'Syne', sans-serif",
           letterSpacing: "0.03em",
         }}
       >
@@ -74,7 +71,7 @@ export default function RecordingIndicator({
       {/* Timer */}
       <span
         style={{
-          color: isPaused ? "#fb923c" : "#ef4444",
+          color: isPaused ? "#F59E0B" : "#F87171",
           fontSize: "clamp(0.75rem, 1.5vw, 0.88rem)",
           fontWeight: 700,
           fontFamily: "monospace",
@@ -110,7 +107,8 @@ export default function RecordingIndicator({
         onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.14)")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
       >
-        {isPaused ? "▶ Resume" : "⏸ Pause"}
+        {isPaused ? <PlayIcon size={14} /> : <PauseIcon size={14} />}
+        {isPaused ? "Resume" : "Pause"}
       </button>
 
       {/* Stop & download */}
@@ -118,7 +116,7 @@ export default function RecordingIndicator({
         onClick={onStop}
         title="Stop recording and download"
         style={{
-          background: "#ef4444",
+          background: "#DC2626",
           border: "1px solid rgba(255,255,255,0.15)",
           borderRadius: "clamp(6px, 1.5vw, 8px)",
           color: "#fff",
@@ -137,7 +135,8 @@ export default function RecordingIndicator({
         onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
       >
-        ⏹ Stop & Save
+        <StopSquare size={14} />
+        Stop & Save
       </button>
     </div>
   );

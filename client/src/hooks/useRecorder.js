@@ -98,15 +98,12 @@ function drawTile(ctx, videoEl, rect, label, isLocal) {
     const cx = x + w / 2;
     const cy = y + videoH / 2;
     const r = Math.min(w, videoH) * 0.22;
-    const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
-    grad.addColorStop(0, "#0080ff");
-    grad.addColorStop(1, "#4af0c8");
-    ctx.fillStyle = grad;
+    ctx.fillStyle = "#0EA5E9";
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#fff";
-    ctx.font = `bold ${r * 0.8}px Syne, sans-serif`;
+    ctx.font = `bold ${r * 0.8}px Inter, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(initials, cx, cy);
@@ -119,7 +116,7 @@ function drawTile(ctx, videoEl, rect, label, isLocal) {
   ctx.roundRect(x, y + videoH, w, LABEL_HEIGHT, [0, 0, 12, 12]);
   ctx.fill();
   ctx.fillStyle = "#e8e8f0";
-  ctx.font = "500 14px DM Sans, sans-serif";
+  ctx.font = "500 14px Inter, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(
@@ -209,7 +206,7 @@ export function useRecorder() {
 
         // Watermark
         ctx.fillStyle = "rgba(255,255,255,0.18)";
-        ctx.font = "bold 15px Syne, sans-serif";
+        ctx.font = "bold 15px Inter, sans-serif";
         ctx.textAlign = "right";
         ctx.textBaseline = "bottom";
         ctx.fillText("ZoomClone", CANVAS_W - 16, CANVAS_H - 12);

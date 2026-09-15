@@ -5,11 +5,12 @@
 //   • Browser Tab
 // ============================================================
 import React, { useEffect } from "react";
+import { Monitor, AppWindow, Globe } from "./icons";
 
 const OPTIONS = [
   {
     id: "monitor",
-    icon: "🖥️",
+    icon: <Monitor size={24} />,
     title: "Entire Screen",
     desc: "Share everything on your display",
     constraints: {
@@ -19,7 +20,7 @@ const OPTIONS = [
   },
   {
     id: "window",
-    icon: "🪟",
+    icon: <AppWindow size={24} />,
     title: "Application Window",
     desc: "Share one app — others stay private",
     constraints: {
@@ -29,7 +30,7 @@ const OPTIONS = [
   },
   {
     id: "browser",
-    icon: "🌐",
+    icon: <Globe size={24} />,
     title: "Browser Tab",
     desc: "Share a specific tab with audio",
     constraints: {
@@ -70,8 +71,7 @@ export default function SharePicker({ onShare, onClose }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.75)",
-        backdropFilter: "blur(8px)",
+        background: "rgba(12,74,110,0.4)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -81,12 +81,12 @@ export default function SharePicker({ onShare, onClose }) {
     >
       <div
         style={{
-          background: "#0f0f1a",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: "22px",
+          background: "#FFFFFF",
+          border: "1px solid #BAE6FD",
+          borderRadius: "14px",
           width: "100%",
           maxWidth: "480px",
-          boxShadow: "0 40px 100px rgba(0,0,0,0.8)",
+          boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
           overflow: "hidden",
         }}
       >
@@ -94,7 +94,7 @@ export default function SharePicker({ onShare, onClose }) {
         <div
           style={{
             padding: "22px 24px 18px",
-            borderBottom: "1px solid rgba(255,255,255,0.07)",
+            borderBottom: "1px solid #BAE6FD",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -103,25 +103,24 @@ export default function SharePicker({ onShare, onClose }) {
           <div>
             <div
               style={{
-                fontFamily: "'Syne', sans-serif",
                 fontWeight: 700,
                 fontSize: "1.05rem",
-                color: "#e8e8f0",
+                color: "#0C4A6E",
               }}
             >
               Share Your Screen
             </div>
-            <div style={{ color: "#6b7280", fontSize: "0.78rem", marginTop: "3px" }}>
+            <div style={{ color: "#0369A1", fontSize: "0.78rem", marginTop: "3px" }}>
               Choose what to show participants
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: "#E0F2FE",
+              border: "1px solid #BAE6FD",
               borderRadius: "8px",
-              color: "#9ca3af",
+              color: "#0369A1",
               width: 32,
               height: 32,
               cursor: "pointer",
@@ -147,38 +146,35 @@ export default function SharePicker({ onShare, onClose }) {
                 alignItems: "center",
                 gap: "16px",
                 padding: "16px 18px",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "14px",
+                background: "#FFFFFF",
+                border: "1px solid #BAE6FD",
+                borderRadius: "10px",
                 cursor: "pointer",
                 textAlign: "left",
                 width: "100%",
-                color: "#e8e8f0",
-                transition: "all 0.15s",
+                color: "#0C4A6E",
                 fontFamily: "inherit",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(0,128,255,0.12)";
-                e.currentTarget.style.borderColor = "rgba(0,128,255,0.35)";
-                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.background = "#F0F9FF";
+                e.currentTarget.style.borderColor = "#BAE6FD";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.background = "#FFFFFF";
+                e.currentTarget.style.borderColor = "#BAE6FD";
               }}
             >
               <span
                 style={{
-                  fontSize: "2rem",
                   width: 48,
                   height: 48,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: "rgba(255,255,255,0.06)",
-                  borderRadius: "12px",
+                  background: "#E0F2FE",
+                  borderRadius: "10px",
                   flexShrink: 0,
+                  color: "#0EA5E9",
                 }}
               >
                 {opt.icon}
@@ -186,26 +182,25 @@ export default function SharePicker({ onShare, onClose }) {
               <div style={{ flex: 1 }}>
                 <div
                   style={{
-                    fontFamily: "'Syne', sans-serif",
                     fontWeight: 600,
                     fontSize: "0.95rem",
-                    color: "#e8e8f0",
+                    color: "#0C4A6E",
                     marginBottom: "3px",
                   }}
                 >
                   {opt.title}
                 </div>
-                <div style={{ color: "#6b7280", fontSize: "0.82rem" }}>
+                <div style={{ color: "#0369A1", fontSize: "0.82rem" }}>
                   {opt.desc}
                 </div>
               </div>
-              <span style={{ color: "#4b5563", fontSize: "1.1rem" }}>›</span>
+              <span style={{ color: "#38BDF8", fontSize: "1.1rem" }}>›</span>
             </button>
           ))}
 
           <p
             style={{
-              color: "#374151",
+              color: "#38BDF8",
               fontSize: "0.75rem",
               textAlign: "center",
               marginTop: "4px",

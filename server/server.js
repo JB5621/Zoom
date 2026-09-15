@@ -65,12 +65,19 @@ function readJsonFile(filePath, fallback) {
 let users = readJsonFile(usersDbPath, []);
 let sessions = readJsonFile(sessionsDbPath, {});
 
+// Non-blocking writes — this process also handles WebRTC signaling for
+// every active call, so a synchronous disk write here would stall
+// offer/answer/ICE relaying for everyone while it completes.
 function saveUsers() {
-  fs.writeFileSync(usersDbPath, JSON.stringify(users, null, 2));
+  fs.writeFile(usersDbPath, JSON.stringify(users, null, 2), (err) => {
+    if (err) console.error("[DATA] Failed to save users.json:", err.message);
+  });
 }
 
 function saveSessions() {
-  fs.writeFileSync(sessionsDbPath, JSON.stringify(sessions, null, 2));
+  fs.writeFile(sessionsDbPath, JSON.stringify(sessions, null, 2), (err) => {
+    if (err) console.error("[DATA] Failed to save sessions.json:", err.message);
+  });
 }
 
 function normalizeEmail(email) {

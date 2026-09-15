@@ -3,13 +3,21 @@
 // ============================================================
 import React, { useState, useRef, useEffect } from "react";
 
-export default function Chat({ messages, onSend, mySocketId }) {
+export default function Chat({ messages, onSend, mySocketId, onClose }) {
   const [text, setText] = useState("");
   const bottomRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // On phones the panel covers the whole screen (including the fixed
+  // controls bar underneath), so it needs its own way out.
+  useEffect(() => {
+    function onKey(e) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   function handleSend() {
     const trimmed = text.trim();
@@ -27,9 +35,8 @@ export default function Chat({ messages, onSend, mySocketId }) {
         top: 0,
         bottom: 0,
         width: "clamp(280px, 30vw, 340px)",
-        background: "rgba(13,13,24,0.8)",
-        backdropFilter: "blur(15px)",
-        borderLeft: "1.5px solid rgba(0,128,255,0.2)",
+        background: "#FFFFFF",
+        borderLeft: "1px solid #BAE6FD",
         display: "flex",
         flexDirection: "column",
         zIndex: 200,
@@ -39,21 +46,43 @@ export default function Chat({ messages, onSend, mySocketId }) {
       <div
         style={{
           padding: "clamp(12px, 3vw, 20px) clamp(12px, 3vw, 20px) clamp(10px, 3vw, 16px)",
-          borderBottom: "1.5px solid rgba(0,128,255,0.1)",
-          background: "rgba(0,128,255,0.05)",
+          borderBottom: "1px solid #BAE6FD",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
         <span
           style={{
-            fontFamily: "'Syne', sans-serif",
             fontWeight: 700,
             fontSize: "clamp(0.9rem, 3vw, 1.05rem)",
-            color: "#e8e8f0",
-            letterSpacing: "0.02em",
+            color: "#0C4A6E",
           }}
         >
-          💬 Chat
+          Chat
         </span>
+        <button
+          onClick={onClose}
+          aria-label="Close chat"
+          style={{
+            background: "#E0F2FE",
+            border: "1px solid #BAE6FD",
+            borderRadius: "8px",
+            color: "#0369A1",
+            width: "clamp(32px, 8vw, 40px)",
+            height: "clamp(32px, 8vw, 40px)",
+            minWidth: "44px",
+            minHeight: "44px",
+            cursor: "pointer",
+            fontSize: "1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "inherit",
+          }}
+        >
+          ✕
+        </button>
       </div>
 
       {/* Messages */}
@@ -68,11 +97,11 @@ export default function Chat({ messages, onSend, mySocketId }) {
         }}
       >
         {messages.length === 0 && (
-          <p style={{ 
-            color: "#4b5563", fontSize: "clamp(0.8rem, 2vw, 0.88rem)", 
-            textAlign: "center", marginTop: "40px", fontStyle: "italic" 
+          <p style={{
+            color: "#38BDF8", fontSize: "clamp(0.8rem, 2vw, 0.88rem)",
+            textAlign: "center", marginTop: "40px", fontStyle: "italic"
           }}>
-            👋 No messages yet. Be the first to say hello!
+            No messages yet. Be the first to say hello!
           </p>
         )}
         {messages.map((msg) => {
@@ -88,10 +117,10 @@ export default function Chat({ messages, onSend, mySocketId }) {
               }}
             >
               {!isMe && (
-                <span style={{ 
-                  color: "#9ca3af", fontSize: "clamp(0.65rem, 1.5vw, 0.73rem)", 
-                  marginBottom: "clamp(3px, 1vw, 6px)", fontWeight: 600, 
-                  letterSpacing: "0.02em" 
+                <span style={{
+                  color: "#38BDF8", fontSize: "clamp(0.65rem, 1.5vw, 0.73rem)",
+                  marginBottom: "clamp(3px, 1vw, 6px)", fontWeight: 600,
+                  letterSpacing: "0.02em"
                 }}>
                   {msg.userName}
                 </span>
@@ -100,27 +129,20 @@ export default function Chat({ messages, onSend, mySocketId }) {
                 style={{
                   maxWidth: "min(85%, 28rem)",
                   padding: "clamp(8px, 2vw, 11px) clamp(10px, 2vw, 15px)",
-                  borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                  background: isMe
-                    ? "linear-gradient(135deg, #0080ff 0%, #00b4ff 100%)"
-                    : "rgba(255,255,255,0.08)",
-                  color: "#e8e8f0",
+                  borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px",
+                  background: isMe ? "#0EA5E9" : "#E0F2FE",
+                  color: isMe ? "#FFFFFF" : "#0C4A6E",
                   fontSize: "clamp(0.8rem, 2vw, 0.88rem)",
                   lineHeight: 1.45,
                   wordBreak: "break-word",
-                  boxShadow: isMe
-                    ? "0 4px 12px rgba(0,128,255,0.2)"
-                    : "none",
-                  border: isMe
-                    ? "none"
-                    : "1px solid rgba(255,255,255,0.08)",
+                  border: isMe ? "none" : "1px solid #BAE6FD",
                 }}
               >
                 {msg.message}
               </div>
-              <span style={{ 
-                color: "#374151", fontSize: "clamp(0.6rem, 1.5vw, 0.68rem)", 
-                marginTop: "clamp(2px, 0.5vw, 4px)" 
+              <span style={{
+                color: "#38BDF8", fontSize: "clamp(0.6rem, 1.5vw, 0.68rem)",
+                marginTop: "clamp(2px, 0.5vw, 4px)"
               }}>
                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
@@ -134,10 +156,9 @@ export default function Chat({ messages, onSend, mySocketId }) {
       <div
         style={{
           padding: "clamp(8px, 2vw, 12px) clamp(10px, 2vw, 16px) clamp(16px, 3vw, 24px)",
-          borderTop: "1.5px solid rgba(0,128,255,0.1)",
+          borderTop: "1px solid #BAE6FD",
           display: "flex",
           gap: "clamp(6px, 1.5vw, 8px)",
-          background: "rgba(0,128,255,0.02)",
         }}
       >
         <input
@@ -147,23 +168,22 @@ export default function Chat({ messages, onSend, mySocketId }) {
           placeholder="Type a message..."
           style={{
             flex: 1,
-            background: "rgba(255,255,255,0.06)",
-            border: "1.5px solid rgba(0,128,255,0.2)",
-            borderRadius: "clamp(8px, 2vw, 12px)",
+            background: "#E0F2FE",
+            border: "1px solid #7DD3FC",
+            borderRadius: "8px",
             padding: "clamp(8px, 2vw, 11px) clamp(10px, 2vw, 15px)",
-            color: "#e8e8f0",
+            color: "#0C4A6E",
             fontSize: "clamp(0.8rem, 2vw, 0.88rem)",
             outline: "none",
             fontFamily: "inherit",
-            transition: "all 0.2s ease",
             minHeight: "44px",
           }}
           onFocus={(e) => {
-            e.target.style.borderColor = "rgba(0,200,255,0.5)";
-            e.target.style.boxShadow = "0 0 0 3px rgba(0,200,255,0.1)";
+            e.target.style.borderColor = "#0EA5E9";
+            e.target.style.boxShadow = "0 0 0 3px rgba(14,165,233,0.15)";
           }}
           onBlur={(e) => {
-            e.target.style.borderColor = "rgba(0,128,255,0.2)";
+            e.target.style.borderColor = "#7DD3FC";
             e.target.style.boxShadow = "none";
           }}
         />
@@ -171,29 +191,21 @@ export default function Chat({ messages, onSend, mySocketId }) {
           onClick={handleSend}
           style={{
             padding: "clamp(8px, 2vw, 11px) clamp(10px, 2vw, 16px)",
-            background: "linear-gradient(135deg, #0080ff, #00c8ff)",
+            background: "#0EA5E9",
             border: "none",
-            borderRadius: "clamp(8px, 2vw, 12px)",
+            borderRadius: "8px",
             color: "#fff",
             fontWeight: 700,
             cursor: "pointer",
             fontSize: "clamp(0.8rem, 2vw, 1rem)",
-            transition: "all 0.2s ease",
-            boxShadow: "0 4px 12px rgba(0,128,255,0.2)",
             minHeight: "44px",
             minWidth: "44px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
-          onMouseEnter={(e) => {
-            e.target.style.transform = "translateY(-2px)";
-            e.target.style.boxShadow = "0 8px 20px rgba(0,128,255,0.3)";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.transform = "translateY(0)";
-            e.target.style.boxShadow = "0 4px 12px rgba(0,128,255,0.2)";
-          }}
+          onMouseEnter={(e) => { e.target.style.background = "#0284C7"; }}
+          onMouseLeave={(e) => { e.target.style.background = "#0EA5E9"; }}
         >
           ↑
         </button>

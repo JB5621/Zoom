@@ -15,7 +15,11 @@ export default defineConfig({
   server: (() => {
     const host = true;
     const port = Number(process.env.VITE_DEV_PORT || 5173);
-    const apiTarget = (process.env.VITE_SERVER_URL || 'https://localhost:5000').replace(/\/$/, '');
+    // Defaults to plain HTTP to match server.js's own default (it only
+    // switches to HTTPS when HTTPS=true or SSL cert files are present —
+    // neither is true out of the box, so proxying to https:// here would
+    // fail the TLS handshake and every /api/* call would 502).
+    const apiTarget = (process.env.VITE_SERVER_URL || 'http://localhost:5000').replace(/\/$/, '');
 
     // If explicit SSL key/cert paths are provided, use them so the dev server
     // can serve HTTPS on LAN IPs (cert must include the LAN IP in SAN).

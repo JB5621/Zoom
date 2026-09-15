@@ -2,6 +2,7 @@
 // Controls.jsx — Bottom toolbar: mic, camera, screen, leave
 // ============================================================
 import React from "react";
+import { Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageCircle, Settings, RecordDot, StopSquare, Globe, PhoneOff, Users } from "./icons";
 
 function Btn({ onClick, active, danger, title, children }) {
   return (
@@ -15,48 +16,32 @@ function Btn({ onClick, active, danger, title, children }) {
         gap: "clamp(2px, 1vw, 4px)",
         padding: "clamp(10px, 2vw, 12px) clamp(12px, 3vw, 18px)",
         background: danger
-          ? "linear-gradient(135deg, #ef4444, #f87171)"
+          ? "#DC2626"
           : active
-          ? "rgba(0,128,255,0.2)"
-          : "rgba(255,255,255,0.06)",
-        border: "1.5px solid",
+          ? "#F0F9FF"
+          : "#E0F2FE",
+        border: "1px solid",
         borderColor: danger
-          ? "#f87171"
+          ? "#DC2626"
           : active
-          ? "rgba(0,200,255,0.4)"
-          : "rgba(255,255,255,0.12)",
-        borderRadius: "clamp(10px, 2vw, 14px)",
-        color: "#fff",
+          ? "#BAE6FD"
+          : "#BAE6FD",
+        borderRadius: "10px",
+        color: danger ? "#FFFFFF" : active ? "#0EA5E9" : "#0C4A6E",
         cursor: "pointer",
-        transition: "all 0.2s ease",
         minWidth: "clamp(44px, 10vw, 66px)",
         minHeight: "44px",
         fontFamily: "inherit",
         fontSize: "clamp(0.8rem, 1.5vw, 0.95rem)",
-        boxShadow: danger
-          ? "0 4px 12px rgba(239,68,68,0.2)"
-          : active
-          ? "0 4px 12px rgba(0,200,255,0.15)"
-          : "none",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-3px)";
-        e.currentTarget.style.boxShadow = danger
-          ? "0 8px 20px rgba(239,68,68,0.3)"
-          : active
-          ? "0 8px 20px rgba(0,200,255,0.25)"
-          : "0 8px 20px rgba(0,128,255,0.2)";
+        e.currentTarget.style.background = danger ? "#B91C1C" : active ? "#E0F2FE" : "#BAE6FD";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = danger
-          ? "0 4px 12px rgba(239,68,68,0.2)"
-          : active
-          ? "0 4px 12px rgba(0,200,255,0.15)"
-          : "none";
+        e.currentTarget.style.background = danger ? "#DC2626" : active ? "#F0F9FF" : "#E0F2FE";
       }}
     >
-      <span style={{ fontSize: "clamp(1rem, 3vw, 1.4rem)", lineHeight: 1 }}>{children}</span>
+      <span style={{ display: "flex" }}>{children}</span>
     </button>
   );
 }
@@ -81,56 +66,43 @@ export default function Controls({
         left: 0,
         right: 0,
         padding: "clamp(12px, 3vw, 16px) clamp(12px, 5vw, 24px) clamp(16px, 4vw, 24px)",
-        background:
-          "linear-gradient(to top, rgba(10,10,15,0.99) 60%, rgba(10,10,15,0.8) 80%, transparent)",
-        backdropFilter: "blur(10px)",
+        background: "#FFFFFF",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         gap: "clamp(6px, 2vw, 10px)",
         zIndex: 100,
-        borderTop: "1px solid rgba(0,128,255,0.1)",
+        borderTop: "1px solid #BAE6FD",
         flexWrap: "wrap",
       }}
     >
-      {/* Room code badge - hidden on small screens */}
+      {/* Room code badge — inline on small/mid screens, pinned to the
+          left edge only once the toolbar is wide enough (see index.css) */}
       <div
+        className="controls-room-badge"
         onClick={copyLink}
         title="Click to copy meeting link"
         style={{
-          position: window.innerWidth < 640 ? "static" : "absolute",
-          left: "clamp(12px, 3vw, 24px)",
-          background: "rgba(0,128,255,0.1)",
-          border: "1.5px solid rgba(0,200,255,0.3)",
-          borderRadius: "clamp(8px, 2vw, 12px)",
+          background: "#E0F2FE",
+          border: "1px solid #BAE6FD",
+          borderRadius: "10px",
           padding: "clamp(6px, 1.5vw, 10px) clamp(10px, 2vw, 16px)",
           cursor: "pointer",
-          display: window.innerWidth < 640 ? "none" : "flex",
           flexDirection: "column",
           alignItems: "flex-start",
-          transition: "all 0.2s ease",
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "rgba(0,128,255,0.2)";
-          e.currentTarget.style.borderColor = "rgba(0,200,255,0.5)";
-          e.currentTarget.style.transform = "translateY(-2px)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "rgba(0,128,255,0.1)";
-          e.currentTarget.style.borderColor = "rgba(0,200,255,0.3)";
-          e.currentTarget.style.transform = "translateY(0)";
-        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "#BAE6FD"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "#E0F2FE"; }}
       >
-        <span style={{ color: "#6b7280", fontSize: "clamp(0.6rem, 1.5vw, 0.7rem)", fontWeight: 600, letterSpacing: "0.05em" }}>
-          📍 ROOM
+        <span style={{ color: "#38BDF8", fontSize: "clamp(0.6rem, 1.5vw, 0.7rem)", fontWeight: 600, letterSpacing: "0.05em" }}>
+          ROOM
         </span>
         <span
           style={{
-            color: "#60b4ff",
+            color: "#0EA5E9",
             fontSize: "clamp(0.75rem, 1.5vw, 0.88rem)",
-            fontFamily: "'Syne', sans-serif",
             fontWeight: 700,
-            letterSpacing: "0.15em",
+            letterSpacing: "0.12em",
             marginTop: "clamp(2px, 0.5vw, 4px)",
           }}
         >
@@ -140,54 +112,41 @@ export default function Controls({
 
       {/* Center controls */}
       <Btn onClick={onToggleMute} active={isMuted} title={isMuted ? "Unmute" : "Mute"}>
-        {isMuted ? "🔇" : "🎤"}
+        {isMuted ? <MicOff /> : <Mic />}
       </Btn>
 
       <Btn onClick={onToggleVideo} active={isVideoOff} title={isVideoOff ? "Start Video" : "Stop Video"}>
-        {isVideoOff ? "📵" : "📹"}
+        {isVideoOff ? <VideoOff /> : <Video />}
       </Btn>
 
       <Btn onClick={onToggleScreen} active={isSharingScreen} title={isSharingScreen ? "Stop Sharing" : "Share Screen"}>
-        {isSharingScreen ? "🖥️" : "📺"}
+        {isSharingScreen ? <MonitorOff /> : <Monitor />}
       </Btn>
 
       <Btn onClick={onToggleChat} active={showChat} title="Chat">
-        💬
+        <MessageCircle />
       </Btn>
 
       <Btn onClick={onOpenSettings} title="Audio & Video Settings">
-        ⚙️
+        <Settings />
       </Btn>
 
       <Btn onClick={onToggleRecord} active={isRecording} title={isRecording ? "Stop Recording" : "Start Recording"}>
-        {isRecording ? "⏹" : "⏺"}
+        {isRecording ? <StopSquare /> : <RecordDot />}
       </Btn>
 
       <Btn onClick={onOpenInterpretation} active={isInterpreterActive} title="Language Interpretation">
-        🌐
+        <Globe />
       </Btn>
 
       <Btn onClick={onLeave} danger title="Leave Meeting">
-        📵
+        <PhoneOff />
       </Btn>
 
-      {/* Participant count */}
-      <div
-        style={{
-          position: window.innerWidth < 640 ? "static" : "absolute",
-          right: "clamp(12px, 3vw, 24px)",
-          display: "flex",
-          alignItems: "center",
-          gap: "clamp(4px, 1vw, 6px)",
-          color: "#6b7280",
-          fontSize: "clamp(0.75rem, 2vw, 0.85rem)",
-          background: window.innerWidth < 640 ? "rgba(255,255,255,0.05)" : "transparent",
-          padding: window.innerWidth < 640 ? "clamp(4px, 1vw, 6px) clamp(8px, 2vw, 12px)" : "0",
-          borderRadius: window.innerWidth < 640 ? "clamp(6px, 1.5vw, 8px)" : "0",
-          border: window.innerWidth < 640 ? "1px solid rgba(255,255,255,0.08)" : "none",
-        }}
-      >
-        <span>👥</span>
+      {/* Participant count — inline pill on small/mid screens, pinned
+          to the right edge only once the toolbar is wide enough */}
+      <div className="controls-participant-count">
+        <Users size={16} />
         <span>{participantCount}</span>
       </div>
     </div>

@@ -1,36 +1,33 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@500;700;800&display=swap");
-
 * {
   box-sizing: border-box;
 }
 
 :root {
-  /* Text palette */
-  --text-1: #F5F9FD;
-  --text-2: #FFE9E3;
-  --text-3: #F8FAFC;
-  --text-4: #C8D7F1;
-  --text-5: #F4F8FF;
-  --text-6: #AEBDD7;
+  /* Text */
+  --text-1: #0C4A6E;   /* primary heading/body text */
+  --text-2: #DC2626;   /* error/danger text */
+  --text-3: #0369A1;   /* secondary body text */
 
-  /* Light theme / UI accents */
-  --light-1: #2A3547;
-  --light-2: #5A6A85;
-  --light-3: #7C8FAC;
-  --light-4: #DFE5EF;
-  --light-5: #EAEFF4;
-  --light-6: #F2F6FA;
-  --light-7: #FFFFFF;
-  --accent-1: #5D87FF;
-  --accent-2: #ECF2FF;
-  --accent-3: #4570EA;
-  --accent-4: #EDFFF5;
-  --accent-5: #FEF5E5;
-  --light-8: #FBF2EF;
-  --accent-6: #539BFF;
+  /* Surfaces & borders (flat, minimal — no gradients/blur) */
+  --light-1: #0C4A6E;  /* primary text on light surfaces */
+  --light-2: #0369A1;  /* secondary/muted text */
+  --light-3: #38BDF8;  /* tertiary/placeholder text */
+  --light-4: #BAE6FD;  /* default border */
+  --light-5: #7DD3FC;  /* stronger border */
+  --light-6: #EFF8FF;  /* page background */
+  --light-7: #FFFFFF;  /* card/surface background */
+  --light-8: #E0F2FE;  /* muted surface (inputs, hover) */
 
-  /* Hover background for beautiful highlights */
-  --hover-bg: #F8FAFC;
+  /* Accent — single flat blue, no gradient */
+  --accent-1: #0EA5E9;
+  --accent-2: #EFF8FF;  /* kept for background-gradient call sites; equals page bg for a flat look */
+  --accent-3: #0284C7;  /* accent hover/pressed */
+  --accent-4: #F0F9FF;  /* soft accent surface (badges) */
+  --accent-5: #FFFBEB;  /* soft warning surface */
+  --accent-6: #38BDF8;
+
+  /* Hover background */
+  --hover-bg: #E0F2FE;
 }
 
 html,
@@ -43,8 +40,8 @@ body,
 body {
   margin: 0;
   padding: 0;
-  font-family: "DM Sans", sans-serif;
-  background: linear-gradient(135deg, var(--light-6) 0%, var(--accent-2) 45%, var(--light-7) 100%);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--light-6);
   color: var(--text-1);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
@@ -81,26 +78,10 @@ textarea {
   }
 }
 
-@keyframes glow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(0, 128, 255, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(0, 128, 255, 0.5);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
-  }
-}
-
-/* Smooth transitions */
-* {
+/* Smooth transitions — scoped to interactive elements, not every node
+   (a universal `*` selector forces transition tracking on every video
+   tile and grid cell too, which adds up fast in a busy meeting) */
+button, input, select, textarea, a {
   transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -116,7 +97,7 @@ textarea {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--light-5);
+  background: var(--light-8);
 }
 
 ::-webkit-scrollbar-thumb {
@@ -176,13 +157,6 @@ textarea {
   }
 }
 
-/* Dark mode preference (respects system) */
-@media (prefers-color-scheme: dark) {
-  body {
-    background: linear-gradient(135deg, var(--light-6) 0%, var(--accent-2) 45%, var(--light-7) 100%);
-  }
-}
-
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -239,6 +213,47 @@ textarea {
 
   .chat-panel {
     width: min(100vw, 320px);
+  }
+}
+
+/* Controls bar — room-code badge and participant count.
+   Below 1024px they sit inline in the wrapping button row; the
+   absolutely-positioned "pinned to the edges" layout only turns on
+   once the toolbar is guaranteed wide enough that it can't collide
+   with the centered icon row (roughly 600px of buttons at full size
+   plus ~120px of clearance on each side). CSS media queries also
+   react to orientation changes instantly, unlike a one-time JS
+   window.innerWidth check. */
+.controls-room-badge {
+  display: none;
+}
+
+.controls-participant-count {
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 1vw, 6px);
+  color: #0369A1;
+  font-size: clamp(0.75rem, 2vw, 0.85rem);
+  background: #E0F2FE;
+  padding: clamp(4px, 1vw, 6px) clamp(8px, 2vw, 12px);
+  border-radius: 8px;
+  border: 1px solid #BAE6FD;
+}
+
+@media (min-width: 1024px) {
+  .controls-room-badge {
+    display: flex;
+    position: absolute;
+    left: clamp(12px, 3vw, 24px);
+  }
+
+  .controls-participant-count {
+    position: absolute;
+    right: clamp(12px, 3vw, 24px);
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    border: none;
   }
 }
 

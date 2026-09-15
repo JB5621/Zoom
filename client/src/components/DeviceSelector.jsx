@@ -2,6 +2,7 @@
 // DeviceSelector.jsx — Settings modal for camera/mic/speaker
 // ============================================================
 import React, { useRef, useEffect, useState } from "react";
+import { Camera, Mic, Volume2 } from "./icons";
 
 // ── Reusable dropdown ─────────────────────────────────────────
 function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) {
@@ -12,7 +13,7 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
           display: "flex",
           alignItems: "center",
           gap: "clamp(6px, 2vw, 10px)",
-          color: "#9ca3af",
+          color: "#0369A1",
           fontSize: "clamp(0.65rem, 1.5vw, 0.75rem)",
           fontWeight: 700,
           letterSpacing: "0.1em",
@@ -20,7 +21,7 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
           marginBottom: "clamp(8px, 2vw, 12px)",
         }}
       >
-        <span style={{ fontSize: "clamp(0.9rem, 2vw, 1.1rem)" }}>{icon}</span>
+        <span style={{ display: "flex" }}>{icon}</span>
         {label}
       </label>
 
@@ -28,10 +29,10 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
         <div
           style={{
             padding: "clamp(10px, 2vw, 14px) clamp(12px, 2vw, 16px)",
-            background: "rgba(255,255,255,0.03)",
-            border: "1.5px solid rgba(255,255,255,0.06)",
-            borderRadius: "clamp(8px, 2vw, 12px)",
-            color: "#4b5563",
+            background: "#E0F2FE",
+            border: "1px solid #BAE6FD",
+            borderRadius: "8px",
+            color: "#38BDF8",
             fontSize: "clamp(0.75rem, 2vw, 0.85rem)",
             textAlign: "center",
           }}
@@ -51,32 +52,25 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
                   alignItems: "center",
                   gap: "clamp(8px, 2vw, 12px)",
                   padding: "clamp(10px, 2vw, 13px) clamp(12px, 2vw, 16px)",
-                  background: isActive
-                    ? "rgba(0,128,255,0.12)"
-                    : "rgba(255,255,255,0.04)",
-                  border: `1.5px solid ${isActive ? "rgba(0,200,255,0.3)" : "rgba(255,255,255,0.08)"}`,
-                  borderRadius: "clamp(8px, 2vw, 12px)",
-                  color: isActive ? "#60b4ff" : "#d1d5db",
+                  background: isActive ? "#F0F9FF" : "#FFFFFF",
+                  border: `1px solid ${isActive ? "#BAE6FD" : "#BAE6FD"}`,
+                  borderRadius: "8px",
+                  color: isActive ? "#0EA5E9" : "#0C4A6E",
                   cursor: disabled ? "default" : "pointer",
                   textAlign: "left",
                   width: "100%",
-                  transition: "all 0.2s ease",
                   fontFamily: "inherit",
                   fontSize: "clamp(0.8rem, 2vw, 0.95rem)",
                   minHeight: "44px",
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive && !disabled) {
-                    e.currentTarget.style.background = "rgba(0,128,255,0.08)";
-                    e.currentTarget.style.borderColor = "rgba(0,200,255,0.2)";
-                    e.currentTarget.style.transform = "translateX(4px)";
+                    e.currentTarget.style.background = "#E0F2FE";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                    e.currentTarget.style.transform = "translateX(0)";
+                    e.currentTarget.style.background = "#FFFFFF";
                   }
                 }}
               >
@@ -86,10 +80,8 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
                     width: "clamp(6px, 1vw, 8px)",
                     height: "clamp(6px, 1vw, 8px)",
                     borderRadius: "50%",
-                    background: isActive ? "#0080ff" : "rgba(255,255,255,0.15)",
+                    background: isActive ? "#0EA5E9" : "#7DD3FC",
                     flexShrink: 0,
-                    boxShadow: isActive ? "0 0 10px rgba(0,128,255,0.6)" : "none",
-                    transition: "all 0.2s",
                   }}
                 />
                 <span
@@ -108,7 +100,7 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
                     style={{
                       marginLeft: "auto",
                       fontSize: "clamp(0.6rem, 1.5vw, 0.7rem)",
-                      color: "#0080ff",
+                      color: "#0EA5E9",
                       fontWeight: 600,
                       flexShrink: 0,
                     }}
@@ -139,12 +131,12 @@ function CameraPreview({ stream }) {
     <div
       style={{
         position: "relative",
-        background: "#111118",
-        borderRadius: "clamp(8px, 2vw, 12px)",
+        background: "#18181D",
+        borderRadius: "10px",
         overflow: "hidden",
         marginBottom: "clamp(16px, 3vw, 24px)",
         aspectRatio: "16/9",
-        border: "1px solid rgba(255,255,255,0.07)",
+        border: "1px solid rgba(255,255,255,0.08)",
       }}
     >
       <video
@@ -166,10 +158,10 @@ function CameraPreview({ stream }) {
           bottom: "clamp(4px, 1vw, 8px)",
           left: "clamp(6px, 1.5vw, 10px)",
           fontSize: "clamp(0.6rem, 1.5vw, 0.7rem)",
-          color: "rgba(255,255,255,0.5)",
+          color: "rgba(255,255,255,0.7)",
           background: "rgba(0,0,0,0.5)",
           padding: "clamp(1px, 0.5vw, 2px) clamp(4px, 1vw, 8px)",
-          borderRadius: "clamp(4px, 1vw, 6px)",
+          borderRadius: "4px",
         }}
       >
         Preview
@@ -219,7 +211,7 @@ function MicMeter({ stream }) {
       <label
         style={{
           display: "block",
-          color: "#9ca3af",
+          color: "#0369A1",
           fontSize: "0.75rem",
           fontWeight: 600,
           letterSpacing: "0.08em",
@@ -227,7 +219,7 @@ function MicMeter({ stream }) {
           marginBottom: "10px",
         }}
       >
-        🎚️ Mic Level
+        Mic Level
       </label>
       <div
         style={{
@@ -236,15 +228,15 @@ function MicMeter({ stream }) {
           alignItems: "flex-end",
           height: "28px",
           padding: "4px 8px",
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.07)",
-          borderRadius: "10px",
+          background: "#E0F2FE",
+          border: "1px solid #BAE6FD",
+          borderRadius: "8px",
         }}
       >
         {Array.from({ length: bars }).map((_, i) => {
           const threshold = (i / bars) * 100;
           const active = level > threshold;
-          const color = i < bars * 0.6 ? "#22c55e" : i < bars * 0.8 ? "#f59e0b" : "#ef4444";
+          const color = i < bars * 0.6 ? "#16A34A" : i < bars * 0.8 ? "#D97706" : "#DC2626";
           return (
             <div
               key={i}
@@ -252,7 +244,7 @@ function MicMeter({ stream }) {
                 flex: 1,
                 height: `${40 + i * 3}%`,
                 borderRadius: "2px",
-                background: active ? color : "rgba(255,255,255,0.1)",
+                background: active ? color : "#7DD3FC",
                 transition: "background 0.05s",
               }}
             />
@@ -295,8 +287,7 @@ export default function DeviceSelector({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.7)",
-        backdropFilter: "blur(6px)",
+        background: "rgba(12,74,110,0.4)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -306,14 +297,14 @@ export default function DeviceSelector({
     >
       <div
         style={{
-          background: "#0f0f1a",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: "clamp(12px, 4vw, 20px)",
+          background: "#FFFFFF",
+          border: "1px solid #BAE6FD",
+          borderRadius: "14px",
           width: "100%",
           maxWidth: "clamp(280px, 90vw, 480px)",
           maxHeight: "85vh",
           overflowY: "auto",
-          boxShadow: "0 32px 80px rgba(0,0,0,0.8)",
+          boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
         }}
       >
         {/* Header */}
@@ -323,10 +314,10 @@ export default function DeviceSelector({
             alignItems: "center",
             justifyContent: "space-between",
             padding: "clamp(14px, 3vw, 20px) clamp(16px, 3vw, 24px) clamp(10px, 3vw, 16px)",
-            borderBottom: "1px solid rgba(255,255,255,0.07)",
+            borderBottom: "1px solid #BAE6FD",
             position: "sticky",
             top: 0,
-            background: "#0f0f1a",
+            background: "#FFFFFF",
             zIndex: 1,
             gap: "clamp(8px, 2vw, 12px)",
           }}
@@ -334,25 +325,24 @@ export default function DeviceSelector({
           <div>
             <div
               style={{
-                fontFamily: "'Syne', sans-serif",
                 fontWeight: 700,
                 fontSize: "clamp(0.9rem, 3vw, 1.05rem)",
-                color: "#e8e8f0",
+                color: "#0C4A6E",
               }}
             >
-              ⚙️ Audio & Video Settings
+              Audio & Video Settings
             </div>
-            <div style={{ color: "#6b7280", fontSize: "clamp(0.7rem, 1.5vw, 0.78rem)", marginTop: "clamp(1px, 0.5vw, 2px)" }}>
+            <div style={{ color: "#0369A1", fontSize: "clamp(0.7rem, 1.5vw, 0.78rem)", marginTop: "clamp(1px, 0.5vw, 2px)" }}>
               Changes apply instantly to your call
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: "clamp(6px, 1.5vw, 8px)",
-              color: "#9ca3af",
+              background: "#E0F2FE",
+              border: "1px solid #BAE6FD",
+              borderRadius: "8px",
+              color: "#0369A1",
               width: "clamp(32px, 8vw, 40px)",
               height: "clamp(32px, 8vw, 40px)",
               cursor: "pointer",
@@ -377,7 +367,7 @@ export default function DeviceSelector({
           {/* Camera select */}
           <DeviceDropdown
             label="Camera"
-            icon="📹"
+            icon={<Camera size={16} />}
             devices={cameras}
             activeId={activeCameraId}
             onChange={onSwitchCamera}
@@ -389,7 +379,7 @@ export default function DeviceSelector({
           {/* Mic select */}
           <DeviceDropdown
             label="Microphone"
-            icon="🎤"
+            icon={<Mic size={16} />}
             devices={microphones}
             activeId={activeMicId}
             onChange={onSwitchMicrophone}
@@ -398,14 +388,14 @@ export default function DeviceSelector({
           {/* Speaker select */}
           <DeviceDropdown
             label="Speaker / Headphones"
-            icon="🔊"
+            icon={<Volume2 size={16} />}
             devices={speakers}
             activeId={activeSpeakerId}
             onChange={onSwitchSpeaker}
           />
 
           {speakers.length === 0 && (
-            <p style={{ color: "#4b5563", fontSize: "0.78rem", marginTop: "-16px" }}>
+            <p style={{ color: "#38BDF8", fontSize: "0.78rem", marginTop: "-16px" }}>
               Speaker selection requires Chrome or Edge.
             </p>
           )}
