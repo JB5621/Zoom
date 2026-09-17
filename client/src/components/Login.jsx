@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import S, { LoadingScreen, focusInput, blurInput } from "./pageStyles";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Login() {
   const { user, loading: authLoading, submitting, login } = useAuth();
@@ -33,6 +34,7 @@ export default function Login() {
 
   return (
     <div className="home-page" style={S.page}>
+      <ThemeToggle />
       <div style={S.logo}>ZoomClone</div>
       <p style={S.tagline}>Sign in to create or join meetings.</p>
 
@@ -75,7 +77,7 @@ export default function Login() {
         {authError && <div style={S.error}>{authError}</div>}
       </div>
 
-      <p style={{ color: "#38BDF8", fontSize: "0.78rem", marginTop: "32px", textAlign: "center" }}>
+      <p style={{ color: "var(--text-3)", fontSize: "0.78rem", marginTop: "32px", textAlign: "center" }}>
         Powered by WebRTC · Accounts stored in a local JSON database
       </p>
     </div>

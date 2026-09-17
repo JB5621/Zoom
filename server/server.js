@@ -170,6 +170,32 @@ const server = createServer();
 const io = new Server(server, { cors: corsOptions });
 
 // rooms: Map<roomId, Room>
+// Short-lived proof that someone passed the room-password check. Issued by
+// POST /api/rooms/:id/verify and presented on socket join. Time-limited but
+// reusable, because socket.io reconnects re-emit join-room and a single-use
+// pass would drop people on any brief network blip.
+const roomPasses = new Map(); // pass -> { roomId, expiresAt }
+const ROOM_PASS_TTL_MS = 15 * 60 * 1000;
+
+function issueRoomPass(roomId) {
+  const pass = crypto.randomBytes(24).toString("hex");
+  roomPasses.set(pass, { roomId, expiresAt: Date.now() + ROOM_PASS_TTL_MS });
+  return pass;
+}
+
+function roomPassValid(pass, roomId) {
+  const entry = roomPasses.get(pass);
+  if (!entry) return false;
+  if (entry.expiresAt < Date.now()) { roomPasses.delete(pass); return false; }
+  return entry.roomId === roomId;
+}
+
+// Keep the map from growing without bound on a long-lived server.
+setInterval(() => {
+  const now = Date.now();
+  for (const [pass, entry] of roomPasses) if (entry.expiresAt < now) roomPasses.delete(pass);
+}, 5 * 60 * 1000).unref();
+
 // interpreterTokens: Map<token, { roomId, channelId, used: false }>
 const rooms = new Map();
 const interpreterTokens = new Map();
@@ -267,6 +293,14 @@ function broadcastInterpretation(roomId) {
 // ── REST: Create room ─────────────────────────────────────────
 app.post("/api/rooms", roomLimiter, (req, res) => {
   const roomId = uuidv4().slice(0, 8).toUpperCase();
+  const rawPassword = typeof req.body?.password === "string" ? req.body.password.trim() : "";
+  if (rawPassword && rawPassword.length < 4) {
+    return res.status(400).json({ error: "Room password must be at least 4 characters." });
+  }
+
+  // Hashed with the same pbkdf2 as user accounts. The plaintext is never
+  // stored, so the host copies it from the invite panel at creation time.
+  const passwordSalt = rawPassword ? crypto.randomBytes(16).toString("hex") : null;
   rooms.set(roomId, {
     id: roomId,
     createdAt: new Date(),
@@ -275,15 +309,66 @@ app.post("/api/rooms", roomLimiter, (req, res) => {
     interpreters: new Map(),   // role=interpreter
     presenterId: null,
     interpretationChannels: [],
+    passwordSalt,
+    passwordHash: rawPassword ? hashPassword(rawPassword, passwordSalt) : null,
   });
-  res.json({ roomId });
+  // The creator gets a pass straight away so they are not asked for the
+  // password they just chose.
+  res.json({
+    roomId,
+    hasPassword: !!rawPassword,
+    pass: rawPassword ? issueRoomPass(roomId) : null,
+  });
+});
+
+// Constant-time comparison; returns true when the room has no password set.
+function roomPasswordOk(room, password) {
+  if (!room?.passwordHash) return true;
+  if (typeof password !== "string" || !password) return false;
+  const attempt = hashPassword(password, room.passwordSalt);
+  const a = Buffer.from(attempt, "hex");
+  const b = Buffer.from(room.passwordHash, "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// ── REST: LAN addresses ───────────────────────────────────────
+// The invite link and QR are useless off-machine when the host is viewing
+// the app on localhost: a phone scanning "https://localhost:5173/..." tries
+// to reach itself. The client asks here for an address that is actually
+// reachable from another device on the same network.
+app.get("/api/network", (req, res) => {
+  const os = require("os");
+  const hosts = [];
+  for (const addrs of Object.values(os.networkInterfaces() || {})) {
+    for (const a of addrs || []) {
+      // Node <18 reports family as the string "IPv4", newer ones as 4.
+      const isV4 = a.family === "IPv4" || a.family === 4;
+      if (isV4 && !a.internal) hosts.push(a.address);
+    }
+  }
+  res.json({ hosts });
 });
 
 // ── REST: Check room ──────────────────────────────────────────
 app.get("/api/rooms/:roomId", (req, res) => {
   const room = getRoom(req.params.roomId);
   if (!room) return res.status(404).json({ error: "Room not found" });
-  res.json({ roomId: room.id, participantCount: room.participants.size });
+  res.json({
+    roomId: room.id,
+    participantCount: room.participants.size,
+    hasPassword: !!room.passwordHash,
+  });
+});
+
+// Exchange the room password for a short-lived pass that the socket join
+// presents. Rate limited because it is a guessable secret.
+app.post("/api/rooms/:roomId/verify", roomLimiter, (req, res) => {
+  const room = getRoom(req.params.roomId);
+  if (!room) return res.status(404).json({ error: "Room not found" });
+  if (!roomPasswordOk(room, req.body?.password)) {
+    return res.status(401).json({ error: "Incorrect room password." });
+  }
+  res.json({ ok: true, pass: issueRoomPass(room.id) });
 });
 
 // ── REST: Validate interpreter token ─────────────────────────
@@ -308,8 +393,20 @@ io.on("connection", (socket) => {
   console.log(`[+] ${socket.id}`);
 
   // ── JOIN (participant) ─────────────────────────────────────
-  socket.on("join-room", ({ roomId, userName }) => {
+  socket.on("join-room", ({ roomId, userName, pass }) => {
     const id = roomId.toUpperCase();
+
+    // A protected room must be gated here, not only in the REST check:
+    // this handler is reachable directly and would otherwise let anyone
+    // with the room code straight in.
+    const existing = rooms.get(id);
+    if (existing?.passwordHash && !roomPassValid(pass, id)) {
+      console.warn(`[JOIN] rejected ${socket.id} -> ${id} (bad or missing room pass)`);
+      socket.emit("join-error", { code: "password-required",
+        message: "This meeting needs a password." });
+      return;
+    }
+
     if (!rooms.has(id)) {
       rooms.set(id, {
         id, createdAt: new Date(), adminId: null,

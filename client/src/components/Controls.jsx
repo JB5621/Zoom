@@ -1,7 +1,7 @@
 // ============================================================
 // Controls.jsx — Bottom toolbar: mic, camera, screen, leave
 // ============================================================
-import React from "react";
+import React, { useLayoutEffect, useRef } from "react";
 import { Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, MessageCircle, Settings, RecordDot, StopSquare, Globe, PhoneOff, Users } from "./icons";
 
 function Btn({ onClick, active, danger, title, children }) {
@@ -16,18 +16,18 @@ function Btn({ onClick, active, danger, title, children }) {
         gap: "clamp(2px, 1vw, 4px)",
         padding: "clamp(10px, 2vw, 12px) clamp(12px, 3vw, 18px)",
         background: danger
-          ? "#DC2626"
+          ? "var(--danger)"
           : active
-          ? "#F0F9FF"
-          : "#E0F2FE",
+          ? "var(--accent-soft)"
+          : "var(--surface-2)",
         border: "1px solid",
         borderColor: danger
-          ? "#DC2626"
+          ? "var(--danger)"
           : active
-          ? "#BAE6FD"
-          : "#BAE6FD",
+          ? "var(--accent)"
+          : "var(--border)",
         borderRadius: "10px",
-        color: danger ? "#FFFFFF" : active ? "#0EA5E9" : "#0C4A6E",
+        color: danger ? "var(--on-accent)" : active ? "var(--accent-text)" : "var(--text-1)",
         cursor: "pointer",
         minWidth: "clamp(44px, 10vw, 66px)",
         minHeight: "44px",
@@ -35,10 +35,10 @@ function Btn({ onClick, active, danger, title, children }) {
         fontSize: "clamp(0.8rem, 1.5vw, 0.95rem)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = danger ? "#B91C1C" : active ? "#E0F2FE" : "#BAE6FD";
+        e.currentTarget.style.background = danger ? "var(--danger-hover)" : active ? "var(--accent-soft-hover)" : "var(--surface-3)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = danger ? "#DC2626" : active ? "#F0F9FF" : "#E0F2FE";
+        e.currentTarget.style.background = danger ? "var(--danger)" : active ? "var(--accent-soft)" : "var(--surface-2)";
       }}
     >
       <span style={{ display: "flex" }}>{children}</span>
@@ -51,28 +51,50 @@ export default function Controls({
   isRecording, isInterpreterActive,
   onToggleMute, onToggleVideo, onToggleScreen,
   onToggleChat, onOpenSettings, onToggleRecord,
-  onOpenInterpretation, onLeave,
+  onOpenInterpretation, onLeave, onOpenInvite,
   participantCount, roomId,
 }) {
-  function copyLink() {
-    navigator.clipboard.writeText(window.location.href);
-  }
+  const barRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const el = barRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const publish = (h) =>
+      document.documentElement.style.setProperty("--controls-h", `${Math.ceil(h)}px`);
+    // Border box, not contentRect: the bar carries ~40px of its own padding
+    // and it is the full painted height the video area has to clear.
+    const ro = new ResizeObserver(([entry]) => {
+      const box = entry.borderBoxSize?.[0];
+      publish(box ? box.blockSize : el.getBoundingClientRect().height);
+    });
+    ro.observe(el);
+    publish(el.getBoundingClientRect().height);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty("--controls-h");
+    };
+  }, []);
+
+  // Opens the invite panel rather than copying silently: a bare copy gave
+  // no feedback and hid the QR and password entirely.
+  const openInvite = onOpenInvite || (() => navigator.clipboard.writeText(window.location.href));
 
   return (
     <div
+      ref={barRef}
       style={{
         position: "fixed",
         bottom: 0,
         left: 0,
         right: 0,
         padding: "clamp(12px, 3vw, 16px) clamp(12px, 5vw, 24px) clamp(16px, 4vw, 24px)",
-        background: "#FFFFFF",
+        background: "var(--surface-1)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         gap: "clamp(6px, 2vw, 10px)",
         zIndex: 100,
-        borderTop: "1px solid #BAE6FD",
+        borderTop: "1px solid var(--border)",
         flexWrap: "wrap",
       }}
     >
@@ -80,26 +102,26 @@ export default function Controls({
           left edge only once the toolbar is wide enough (see index.css) */}
       <div
         className="controls-room-badge"
-        onClick={copyLink}
-        title="Click to copy meeting link"
+        onClick={openInvite}
+        title="Show invite link, QR code and room code"
         style={{
-          background: "#E0F2FE",
-          border: "1px solid #BAE6FD",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border)",
           borderRadius: "10px",
           padding: "clamp(6px, 1.5vw, 10px) clamp(10px, 2vw, 16px)",
           cursor: "pointer",
           flexDirection: "column",
           alignItems: "flex-start",
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = "#BAE6FD"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "#E0F2FE"; }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-3)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-2)"; }}
       >
-        <span style={{ color: "#38BDF8", fontSize: "clamp(0.6rem, 1.5vw, 0.7rem)", fontWeight: 600, letterSpacing: "0.05em" }}>
+        <span style={{ color: "var(--text-3)", fontSize: "clamp(0.6rem, 1.5vw, 0.7rem)", fontWeight: 600, letterSpacing: "0.05em" }}>
           ROOM
         </span>
         <span
           style={{
-            color: "#0EA5E9",
+            color: "var(--accent-text)",
             fontSize: "clamp(0.75rem, 1.5vw, 0.88rem)",
             fontWeight: 700,
             letterSpacing: "0.12em",

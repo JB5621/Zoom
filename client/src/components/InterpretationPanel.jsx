@@ -21,15 +21,15 @@ function Modal({ children, onClose }) {
 
   return (
     <div onClick={e => e.target === e.currentTarget && onClose()} style={{
-      position:"fixed",inset:0,background:"rgba(12,74,110,0.4)",
+      position:"fixed",inset:0,background:"var(--scrim)",
       display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,
       padding:"clamp(12px, 3vw, 16px)",
     }}>
       <div style={{
-        background:"#FFFFFF",border:"1px solid #BAE6FD",
+        background:"var(--surface-1)",border:"1px solid var(--border)",
         borderRadius:"14px",
         width:"100%",maxWidth:"clamp(280px, 90vw, 520px)",maxHeight:"88vh",overflowY:"auto",
-        boxShadow:"0 20px 50px rgba(0,0,0,0.15)",
+        boxShadow:"var(--shadow-modal)",
       }}>
         {children}
       </div>
@@ -42,20 +42,20 @@ function Header({ title, sub, onClose }) {
     <div style={{
       display:"flex",alignItems:"center",justifyContent:"space-between",
       padding:"clamp(14px, 3vw, 22px) clamp(16px, 3vw, 24px) clamp(10px, 3vw, 16px)",
-      borderBottom:"1px solid #BAE6FD",
-      position:"sticky",top:0,background:"#FFFFFF",zIndex:1,gap:"clamp(8px, 2vw, 12px)",
+      borderBottom:"1px solid var(--border)",
+      position:"sticky",top:0,background:"var(--surface-1)",zIndex:1,gap:"clamp(8px, 2vw, 12px)",
     }}>
       <div>
         <div style={{ fontWeight:700,
-          fontSize:"clamp(0.9rem, 3vw, 1.05rem)",color:"#0C4A6E" }}>
+          fontSize:"clamp(0.9rem, 3vw, 1.05rem)",color:"var(--text-1)" }}>
           {title}
         </div>
-        {sub && <div style={{ color:"#0369A1",fontSize:"clamp(0.7rem, 1.5vw, 0.78rem)",
+        {sub && <div style={{ color:"var(--text-2)",fontSize:"clamp(0.7rem, 1.5vw, 0.78rem)",
           marginTop:"clamp(1px, 0.5vw, 3px)" }}>{sub}</div>}
       </div>
       <button onClick={onClose} style={{
-        background:"#E0F2FE",border:"1px solid #BAE6FD",
-        borderRadius:"8px",color:"#0369A1",
+        background:"var(--surface-2)",border:"1px solid var(--border)",
+        borderRadius:"8px",color:"var(--text-2)",
         width:"clamp(32px, 8vw, 40px)",height:"clamp(32px, 8vw, 40px)",
         cursor:"pointer",fontSize:"clamp(0.8rem, 2vw, 1rem)",
         display:"flex",alignItems:"center",justifyContent:"center",
@@ -68,9 +68,9 @@ function Header({ title, sub, onClose }) {
 function LangSelect({ value, onChange, exclude, placeholder }) {
   return (
     <select value={value} onChange={e => onChange(e.target.value)} style={{
-      flex:1,background:"#FFFFFF",border:"1px solid #7DD3FC",
+      flex:1,background:"var(--surface-2)",border:"1px solid var(--border-strong)",
       borderRadius:"8px",padding:"clamp(8px, 1.5vw, 10px) clamp(8px, 2vw, 12px)",
-      color:value?"#0C4A6E":"#38BDF8",fontSize:"clamp(0.8rem, 2vw, 0.88rem)",
+      color:value?"var(--text-1)":"var(--text-3)",fontSize:"clamp(0.8rem, 2vw, 0.88rem)",
       outline:"none",cursor:"pointer",fontFamily:"inherit",minHeight:"44px",
     }}>
       <option value="" disabled>{placeholder}</option>
@@ -93,23 +93,23 @@ function CreateChannelForm({ onCreate }) {
 
   return (
     <div style={{
-      background:"#F0F9FF",border:"1px solid #BAE6FD",
+      background:"var(--accent-soft)",border:"1px solid var(--border)",
       borderRadius:"10px",padding:"clamp(12px, 3vw, 16px)",
       marginBottom:"clamp(12px, 3vw, 20px)",
     }}>
-      <div style={{ color:"#0284C7",fontSize:"clamp(0.65rem, 1.5vw, 0.75rem)",
+      <div style={{ color:"var(--accent-hover)",fontSize:"clamp(0.65rem, 1.5vw, 0.75rem)",
         fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",
         marginBottom:"clamp(8px, 2vw, 12px)" }}>
         New Language Channel
       </div>
       <div style={{ display:"flex",gap:"clamp(6px, 2vw, 8px)",flexWrap:"wrap",alignItems:"center" }}>
         <LangSelect value={src} onChange={setSrc} exclude={tgt} placeholder="Source language" />
-        <span style={{ color:"#38BDF8",fontSize:"clamp(0.9rem, 2vw, 1.1rem)" }}>→</span>
+        <span style={{ color:"var(--text-3)",fontSize:"clamp(0.9rem, 2vw, 1.1rem)" }}>→</span>
         <LangSelect value={tgt} onChange={setTgt} exclude={src} placeholder="Target language" />
         <button onClick={handle} disabled={!src||!tgt||src===tgt} style={{
           padding:"clamp(8px, 2vw, 10px) clamp(10px, 2vw, 16px)",
-          background:"#0EA5E9",
-          border:"none",borderRadius:"8px",color:"#fff",
+          background:"var(--accent)",
+          border:"none",borderRadius:"8px",color:"var(--on-accent)",
           fontWeight:600,fontSize:"clamp(0.75rem, 2vw, 0.85rem)",
           whiteSpace:"nowrap",cursor:(!src||!tgt||src===tgt)?"not-allowed":"pointer",
           opacity:(!src||!tgt||src===tgt)?0.5:1,minHeight:"44px",minWidth:"44px",
@@ -132,7 +132,7 @@ function ChannelCard({ channel, token, onDelete }) {
 
   return (
     <div style={{
-      background:"#FFFFFF",border:"1px solid #BAE6FD",
+      background:"var(--surface-2)",border:"1px solid var(--border)",
       borderRadius:"10px",padding:"clamp(12px, 3vw, 16px)",
       marginBottom:"clamp(8px, 2vw, 12px)",
     }}>
@@ -140,19 +140,19 @@ function ChannelCard({ channel, token, onDelete }) {
         marginBottom:"clamp(8px, 2vw, 12px)",gap:"clamp(6px, 2vw, 10px)",flexWrap:"wrap" }}>
         <div style={{ display:"flex",alignItems:"center",gap:"clamp(6px, 2vw, 10px)",flexWrap:"wrap" }}>
           <span style={{ fontWeight:700,
-            color:"#0C4A6E",fontSize:"clamp(0.85rem, 2vw, 1rem)" }}>
+            color:"var(--text-1)",fontSize:"clamp(0.85rem, 2vw, 1rem)" }}>
             {channel.name}
           </span>
           {channel.active
             ? <span style={{ fontSize:"clamp(0.6rem, 1.5vw, 0.7rem)",
-              background:"#F0FDF4",color:"#15803D",borderRadius:"6px",
-              border:"1px solid #BBF7D0",
+              background:"var(--success-soft)",color:"var(--success-text)",borderRadius:"6px",
+              border:"1px solid var(--success-border)",
               padding:"clamp(1px, 0.5vw, 2px) clamp(4px, 1vw, 8px)",fontWeight:600,whiteSpace:"nowrap" }}>
                 LIVE — {channel.interpreterName}
               </span>
             : <span style={{ fontSize:"clamp(0.6rem, 1.5vw, 0.7rem)",
-              background:"#FFFBEB",color:"#B45309",
-              border:"1px solid #FDE68A",
+              background:"var(--warn-soft)",color:"var(--warn-text)",
+              border:"1px solid var(--warn-border)",
               borderRadius:"6px",padding:"clamp(1px, 0.5vw, 2px) clamp(4px, 1vw, 8px)",
               fontWeight:600,whiteSpace:"nowrap" }}>
                 Awaiting interpreter
@@ -160,7 +160,7 @@ function ChannelCard({ channel, token, onDelete }) {
           }
         </div>
         <button onClick={() => onDelete(channel.id)} style={{
-          background:"none",border:"none",color:"#38BDF8",cursor:"pointer",
+          background:"none",border:"none",color:"var(--text-3)",cursor:"pointer",
           fontSize:"clamp(0.85rem, 2vw, 1rem)",padding:"clamp(2px, 0.5vw, 6px)",
           minWidth:"44px",minHeight:"44px",display:"flex",alignItems:"center",justifyContent:"center",
         }}><Trash2 size={16} /></button>
@@ -168,27 +168,27 @@ function ChannelCard({ channel, token, onDelete }) {
 
       {inviteUrl && (
         <>
-          <div style={{ color:"#0369A1",fontSize:"clamp(0.65rem, 1.5vw, 0.75rem)",marginBottom:"clamp(4px, 1vw, 6px)" }}>
+          <div style={{ color:"var(--text-2)",fontSize:"clamp(0.65rem, 1.5vw, 0.75rem)",marginBottom:"clamp(4px, 1vw, 6px)" }}>
             Interpreter invite link:
           </div>
           <div style={{ display:"flex",gap:"clamp(6px, 1.5vw, 8px)",flexWrap:"wrap" }}>
             <div style={{
-              flex:1,minWidth:"150px",background:"#E0F2FE",border:"1px solid #BAE6FD",
+              flex:1,minWidth:"150px",background:"var(--surface-2)",border:"1px solid var(--border)",
               borderRadius:"8px",padding:"clamp(6px, 1.5vw, 8px) clamp(8px, 2vw, 12px)",
-              fontSize:"clamp(0.7rem, 1.5vw, 0.78rem)",color:"#0369A1",
+              fontSize:"clamp(0.7rem, 1.5vw, 0.78rem)",color:"var(--text-2)",
               overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
             }}>{inviteUrl}</div>
             <button onClick={copy} style={{
               padding:"clamp(6px, 1.5vw, 8px) clamp(10px, 2vw, 14px)",
-              background:copied?"#F0FDF4":"#FFFFFF",
-              border:`1px solid ${copied?"#BBF7D0":"#7DD3FC"}`,
-              borderRadius:"8px",color:copied?"#15803D":"#0C4A6E",
+              background:copied?"var(--success-soft)":"var(--surface-3)",
+              border:`1px solid ${copied?"var(--success-border)":"var(--border-strong)"}`,
+              borderRadius:"8px",color:copied?"var(--success-text)":"var(--text-1)",
               cursor:"pointer",fontSize:"clamp(0.7rem, 1.5vw, 0.8rem)",fontWeight:600,
               fontFamily:"inherit",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:"6px",
               minHeight:"44px",
             }}>{copied ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy</>}</button>
           </div>
-          <p style={{ color:"#38BDF8",fontSize:"clamp(0.65rem, 1.5vw, 0.72rem)",
+          <p style={{ color:"var(--text-3)",fontSize:"clamp(0.65rem, 1.5vw, 0.72rem)",
             marginTop:"clamp(4px, 1vw, 6px)" }}>
             Send this to your interpreter. They will join invisibly and speak in {channel.targetLang}.
           </p>
@@ -201,7 +201,7 @@ function ChannelCard({ channel, token, onDelete }) {
 function LanguagePicker({ channels, selectedChannelId, onSelect }) {
   return (
     <div style={{ padding:"0 clamp(16px, 3vw, 24px) clamp(16px, 3vw, 24px)" }}>
-      <div style={{ color:"#0369A1",fontSize:"clamp(0.65rem, 1.5vw, 0.75rem)",
+      <div style={{ color:"var(--text-2)",fontSize:"clamp(0.65rem, 1.5vw, 0.75rem)",
         fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",
         marginBottom:"clamp(10px, 2vw, 14px)" }}>
         Audio Source — Click to toggle
@@ -211,28 +211,28 @@ function LanguagePicker({ channels, selectedChannelId, onSelect }) {
         display:"flex",alignItems:"center",gap:"clamp(10px, 2vw, 14px)",width:"100%",
         padding:"clamp(10px, 2vw, 14px) clamp(12px, 2vw, 16px)",
         marginBottom:"clamp(6px, 1.5vw, 10px)",
-        background:!selectedChannelId?"#F0F9FF":"#FFFFFF",
-        border:`1px solid ${!selectedChannelId?"#BAE6FD":"#BAE6FD"}`,
+        background:!selectedChannelId?"var(--accent-soft)":"var(--surface-2)",
+        border:`1px solid ${!selectedChannelId?"var(--accent)":"var(--border)"}`,
         borderRadius:"10px",cursor:"pointer",textAlign:"left",fontFamily:"inherit",
         minHeight:"44px",fontSize:"clamp(0.85rem, 2vw, 0.92rem)",
       }}>
-        <span style={{ display:"flex",color:!selectedChannelId?"#0EA5E9":"#0369A1" }}><Volume2 size={22} /></span>
+        <span style={{ display:"flex",color:!selectedChannelId?"var(--accent-text)":"var(--text-2)" }}><Volume2 size={22} /></span>
         <div style={{ flex:1 }}>
           <div style={{ fontWeight:600,
-            color:!selectedChannelId?"#0EA5E9":"#0C4A6E",fontSize:"clamp(0.85rem, 2vw, 0.92rem)" }}>
+            color:!selectedChannelId?"var(--accent)":"var(--text-1)",fontSize:"clamp(0.85rem, 2vw, 0.92rem)" }}>
             Original Audio
           </div>
-          <div style={{ color:"#0369A1",fontSize:"clamp(0.7rem, 1.5vw, 0.78rem)" }}>
+          <div style={{ color:"var(--text-2)",fontSize:"clamp(0.7rem, 1.5vw, 0.78rem)" }}>
             Hear all participants — interpreters muted
           </div>
         </div>
         {!selectedChannelId && <span style={{ fontSize:"clamp(0.6rem, 1.5vw, 0.7rem)",
-          color:"#0EA5E9",fontWeight:700,whiteSpace:"nowrap",padding:"4px 8px",
-          background:"#E0F2FE",borderRadius:"6px" }}>ACTIVE</span>}
+          color:"var(--accent-text)",fontWeight:700,whiteSpace:"nowrap",padding:"4px 8px",
+          background:"var(--surface-2)",borderRadius:"6px" }}>ACTIVE</span>}
       </button>
 
       {channels.length === 0 && (
-        <p style={{ color:"#38BDF8",textAlign:"center",fontSize:"clamp(0.8rem, 2vw, 0.85rem)",
+        <p style={{ color:"var(--text-3)",textAlign:"center",fontSize:"clamp(0.8rem, 2vw, 0.85rem)",
           padding:"clamp(16px, 4vw, 24px) 0" }}>
           No interpretation channels available yet.
         </p>
@@ -245,38 +245,38 @@ function LanguagePicker({ channels, selectedChannelId, onSelect }) {
             disabled={!ch.active} style={{
             display:"flex",alignItems:"center",gap:"14px",width:"100%",
             padding:"14px 16px",marginBottom:"10px",
-            background:active?"#F0FDF4":"#FFFFFF",
-            border:`1px solid ${active?"#BBF7D0":"#BAE6FD"}`,
+            background:active?"var(--success-soft)":"var(--surface-2)",
+            border:`1px solid ${active?"var(--success-border)":"var(--border)"}`,
             borderRadius:"10px",cursor:ch.active?"pointer":"not-allowed",
             textAlign:"left",fontFamily:"inherit",opacity:ch.active?1:0.5,
             minHeight:"44px",
           }}>
-            <span style={{ display:"flex",color:active?"#15803D":"#0EA5E9" }}><Globe size={22} /></span>
+            <span style={{ display:"flex",color:active?"var(--success-text)":"var(--accent-text)" }}><Globe size={22} /></span>
             <div style={{ flex:1 }}>
               <div style={{ fontWeight:600,
-                color:active?"#15803D":"#0C4A6E",fontSize:"0.92rem" }}>{ch.name}</div>
-              <div style={{ fontSize:"0.78rem",color:ch.active?"#0369A1":"#38BDF8" }}>
+                color:active?"var(--success-text)":"var(--text-1)",fontSize:"0.92rem" }}>{ch.name}</div>
+              <div style={{ fontSize:"0.78rem",color:ch.active?"var(--text-2)":"var(--text-3)" }}>
                 {ch.active ? `${ch.interpreterName} is live` : "Waiting for interpreter…"}
               </div>
             </div>
-            {active && <span style={{ fontSize:"0.7rem",color:"#15803D",fontWeight:700,
-              padding:"4px 8px",background:"#DCFCE7",borderRadius:"6px" }}>ACTIVE</span>}
-            {ch.active && !active && <span style={{ fontSize:"0.65rem",color:"#0369A1",fontWeight:600,
-              padding:"4px 8px",background:"#E0F2FE",borderRadius:"6px" }}>Click to switch</span>}
+            {active && <span style={{ fontSize:"0.7rem",color:"var(--success-text)",fontWeight:700,
+              padding:"4px 8px",background:"var(--success-soft)",borderRadius:"6px" }}>ACTIVE</span>}
+            {ch.active && !active && <span style={{ fontSize:"0.65rem",color:"var(--text-2)",fontWeight:600,
+              padding:"4px 8px",background:"var(--surface-2)",borderRadius:"6px" }}>Click to switch</span>}
           </button>
         );
       })}
 
       {selectedChannelId && (
         <div style={{ marginTop:"16px",padding:"12px 16px",
-          background:"#FFFBEB",border:"1px solid #FDE68A",
+          background:"var(--warn-soft)",border:"1px solid var(--warn-border)",
           borderRadius:"10px",display:"flex",alignItems:"center",gap:"10px" }}>
-          <span style={{ display:"flex",color:"#D97706" }}><Volume2 size={18} /></span>
+          <span style={{ display:"flex",color:"var(--warn-text)" }}><Volume2 size={18} /></span>
           <div style={{ flex:1 }}>
-            <div style={{ color:"#B45309",fontSize:"0.82rem",fontWeight:600 }}>
+            <div style={{ color:"var(--warn-text)",fontSize:"0.82rem",fontWeight:600 }}>
               Interpreter mode active
             </div>
-            <div style={{ color:"#92400E",fontSize:"0.7rem",marginTop:"2px" }}>
+            <div style={{ color:"var(--warn-text)",fontSize:"0.7rem",marginTop:"2px" }}>
               Only hearing interpreter — original speakers muted. Click "Original Audio" to switch back.
             </div>
           </div>
@@ -304,14 +304,14 @@ export default function InterpretationPanel({
 
       {isAdmin && (
         <div style={{ display:"flex",gap:"4px",padding:"12px 24px 0",
-          borderBottom:"1px solid #BAE6FD" }}>
+          borderBottom:"1px solid var(--border)" }}>
           {[{id:"listen",label:"Listen"},{id:"manage",label:"Manage"}].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               padding:"8px 18px",
-              background:tab===t.id?"#F0F9FF":"transparent",
+              background:tab===t.id?"var(--accent-soft)":"transparent",
               border:"none",
-              borderBottom:`2px solid ${tab===t.id?"#0EA5E9":"transparent"}`,
-              color:tab===t.id?"#0EA5E9":"#0369A1",
+              borderBottom:`2px solid ${tab===t.id?"var(--accent)":"transparent"}`,
+              color:tab===t.id?"var(--accent-text)":"var(--text-2)",
               cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:"0.85rem",
               borderRadius:"8px 8px 0 0",
             }}>{t.label}</button>
@@ -327,7 +327,7 @@ export default function InterpretationPanel({
           <div style={{ padding:"0 24px 24px" }}>
             <CreateChannelForm onCreate={onCreateChannel} />
             {channels.length === 0 && (
-              <p style={{ color:"#38BDF8",textAlign:"center",fontSize:"0.85rem",padding:"8px 0" }}>
+              <p style={{ color:"var(--text-3)",textAlign:"center",fontSize:"0.85rem",padding:"8px 0" }}>
                 No channels yet. Create one above to get an interpreter invite link.
               </p>
             )}

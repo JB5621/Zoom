@@ -7,6 +7,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import S, { LoadingScreen, focusInput, blurInput } from "./pageStyles";
+import ThemeToggle from "./ThemeToggle";
 
 export default function InterpreterJoin() {
   const [searchParams] = useSearchParams();
@@ -40,7 +41,7 @@ export default function InterpreterJoin() {
 
   const badge = {
     display: "inline-flex", alignItems: "center", gap: "8px",
-    background: "#F0F9FF", border: "1px solid #BAE6FD",
+    background: "var(--accent-soft)", border: "1px solid var(--border)",
     borderRadius: "8px", padding: "8px 16px", marginBottom: "20px",
   };
 
@@ -48,11 +49,12 @@ export default function InterpreterJoin() {
 
   if (error && !channelInfo) return (
     <div style={S.page}>
+      <ThemeToggle />
       <div style={{ ...S.card, textAlign: "center" }}>
         <div style={S.logo}>ZoomClone</div>
         <div style={{ fontSize: "2.5rem", marginBottom: "16px" }}>✕</div>
-        <p style={{ color: "#0C4A6E", marginBottom: "8px", fontWeight: 600 }}>Invalid Invite Link</p>
-        <p style={{ color: "#0369A1", fontSize: "0.85rem" }}>{error}</p>
+        <p style={{ color: "var(--text-1)", marginBottom: "8px", fontWeight: 600 }}>Invalid Invite Link</p>
+        <p style={{ color: "var(--text-2)", fontSize: "0.85rem" }}>{error}</p>
       </div>
     </div>
   );
@@ -61,24 +63,24 @@ export default function InterpreterJoin() {
     <div style={S.page}>
       <div style={{ ...S.card, textAlign: "center" }}>
         <div style={S.logo}>ZoomClone</div>
-        <h2 style={{ fontWeight: 700, color: "#0C4A6E", marginBottom: "8px", fontSize: "1.1rem" }}>
+        <h2 style={{ fontWeight: 700, color: "var(--text-1)", marginBottom: "8px", fontSize: "1.1rem" }}>
           Interpreter Invite
         </h2>
-        <p style={{ color: "#0369A1", fontSize: "0.85rem", marginBottom: "20px" }}>
+        <p style={{ color: "var(--text-2)", fontSize: "0.85rem", marginBottom: "20px" }}>
           You've been invited to interpret for this meeting
         </p>
 
         {channelInfo && (
           <div style={badge}>
-            <span style={{ fontFamily: "inherit", fontWeight: 700, color: "#0C4A6E", fontSize: "0.9rem" }}>
+            <span style={{ fontFamily: "inherit", fontWeight: 700, color: "var(--text-1)", fontSize: "0.9rem" }}>
               {channelInfo.channelName}
             </span>
           </div>
         )}
 
-        <p style={{ color: "#0369A1", fontSize: "0.8rem", marginBottom: "20px", textAlign: "left" }}>
-          You will hear the entire conference but will <strong style={{ color: "#0C4A6E" }}>not be visible</strong> in the main grid.
-          Speak in <strong style={{ color: "#0C4A6E" }}>{channelInfo?.targetLang}</strong> and participants who select your channel will hear you.
+        <p style={{ color: "var(--text-2)", fontSize: "0.8rem", marginBottom: "20px", textAlign: "left" }}>
+          You will hear the entire conference but will <strong style={{ color: "var(--text-1)" }}>not be visible</strong> in the main grid.
+          Speak in <strong style={{ color: "var(--text-1)" }}>{channelInfo?.targetLang}</strong> and participants who select your channel will hear you.
         </p>
 
         <input

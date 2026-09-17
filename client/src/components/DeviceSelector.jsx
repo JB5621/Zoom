@@ -13,7 +13,7 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
           display: "flex",
           alignItems: "center",
           gap: "clamp(6px, 2vw, 10px)",
-          color: "#0369A1",
+          color: "var(--text-2)",
           fontSize: "clamp(0.65rem, 1.5vw, 0.75rem)",
           fontWeight: 700,
           letterSpacing: "0.1em",
@@ -29,10 +29,10 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
         <div
           style={{
             padding: "clamp(10px, 2vw, 14px) clamp(12px, 2vw, 16px)",
-            background: "#E0F2FE",
-            border: "1px solid #BAE6FD",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)",
             borderRadius: "8px",
-            color: "#38BDF8",
+            color: "var(--text-3)",
             fontSize: "clamp(0.75rem, 2vw, 0.85rem)",
             textAlign: "center",
           }}
@@ -52,10 +52,10 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
                   alignItems: "center",
                   gap: "clamp(8px, 2vw, 12px)",
                   padding: "clamp(10px, 2vw, 13px) clamp(12px, 2vw, 16px)",
-                  background: isActive ? "#F0F9FF" : "#FFFFFF",
-                  border: `1px solid ${isActive ? "#BAE6FD" : "#BAE6FD"}`,
+                  background: isActive ? "var(--accent-soft)" : "var(--surface-2)",
+                  border: `1px solid ${isActive ? "var(--accent)" : "var(--border)"}`,
                   borderRadius: "8px",
-                  color: isActive ? "#0EA5E9" : "#0C4A6E",
+                  color: isActive ? "var(--accent-text)" : "var(--text-1)",
                   cursor: disabled ? "default" : "pointer",
                   textAlign: "left",
                   width: "100%",
@@ -65,12 +65,12 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive && !disabled) {
-                    e.currentTarget.style.background = "#E0F2FE";
+                    e.currentTarget.style.background = "var(--surface-3)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.background = "#FFFFFF";
+                    e.currentTarget.style.background = "var(--surface-2)";
                   }
                 }}
               >
@@ -80,7 +80,7 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
                     width: "clamp(6px, 1vw, 8px)",
                     height: "clamp(6px, 1vw, 8px)",
                     borderRadius: "50%",
-                    background: isActive ? "#0EA5E9" : "#7DD3FC",
+                    background: isActive ? "var(--accent)" : "var(--border-strong)",
                     flexShrink: 0,
                   }}
                 />
@@ -100,7 +100,7 @@ function DeviceDropdown({ label, icon, devices, activeId, onChange, disabled }) 
                     style={{
                       marginLeft: "auto",
                       fontSize: "clamp(0.6rem, 1.5vw, 0.7rem)",
-                      color: "#0EA5E9",
+                      color: "var(--accent-text)",
                       fontWeight: 600,
                       flexShrink: 0,
                     }}
@@ -131,12 +131,12 @@ function CameraPreview({ stream }) {
     <div
       style={{
         position: "relative",
-        background: "#18181D",
+        background: "var(--well)",
         borderRadius: "10px",
         overflow: "hidden",
         marginBottom: "clamp(16px, 3vw, 24px)",
         aspectRatio: "16/9",
-        border: "1px solid rgba(255,255,255,0.08)",
+        border: "1px solid var(--border)",
       }}
     >
       <video
@@ -158,8 +158,8 @@ function CameraPreview({ stream }) {
           bottom: "clamp(4px, 1vw, 8px)",
           left: "clamp(6px, 1.5vw, 10px)",
           fontSize: "clamp(0.6rem, 1.5vw, 0.7rem)",
-          color: "rgba(255,255,255,0.7)",
-          background: "rgba(0,0,0,0.5)",
+          color: "var(--on-well)",
+          background: "var(--chip-dark)",
           padding: "clamp(1px, 0.5vw, 2px) clamp(4px, 1vw, 8px)",
           borderRadius: "4px",
         }}
@@ -211,7 +211,7 @@ function MicMeter({ stream }) {
       <label
         style={{
           display: "block",
-          color: "#0369A1",
+          color: "var(--text-2)",
           fontSize: "0.75rem",
           fontWeight: 600,
           letterSpacing: "0.08em",
@@ -228,15 +228,15 @@ function MicMeter({ stream }) {
           alignItems: "flex-end",
           height: "28px",
           padding: "4px 8px",
-          background: "#E0F2FE",
-          border: "1px solid #BAE6FD",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border)",
           borderRadius: "8px",
         }}
       >
         {Array.from({ length: bars }).map((_, i) => {
           const threshold = (i / bars) * 100;
           const active = level > threshold;
-          const color = i < bars * 0.6 ? "#16A34A" : i < bars * 0.8 ? "#D97706" : "#DC2626";
+          const color = i < bars * 0.6 ? "var(--success)" : i < bars * 0.8 ? "var(--warn-text)" : "var(--danger)";
           return (
             <div
               key={i}
@@ -244,7 +244,7 @@ function MicMeter({ stream }) {
                 flex: 1,
                 height: `${40 + i * 3}%`,
                 borderRadius: "2px",
-                background: active ? color : "#7DD3FC",
+                background: active ? color : "var(--border-strong)",
                 transition: "background 0.05s",
               }}
             />
@@ -287,7 +287,7 @@ export default function DeviceSelector({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(12,74,110,0.4)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -297,14 +297,14 @@ export default function DeviceSelector({
     >
       <div
         style={{
-          background: "#FFFFFF",
-          border: "1px solid #BAE6FD",
+          background: "var(--surface-1)",
+          border: "1px solid var(--border)",
           borderRadius: "14px",
           width: "100%",
           maxWidth: "clamp(280px, 90vw, 480px)",
           maxHeight: "85vh",
           overflowY: "auto",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
+          boxShadow: "var(--shadow-modal)",
         }}
       >
         {/* Header */}
@@ -314,10 +314,10 @@ export default function DeviceSelector({
             alignItems: "center",
             justifyContent: "space-between",
             padding: "clamp(14px, 3vw, 20px) clamp(16px, 3vw, 24px) clamp(10px, 3vw, 16px)",
-            borderBottom: "1px solid #BAE6FD",
+            borderBottom: "1px solid var(--border)",
             position: "sticky",
             top: 0,
-            background: "#FFFFFF",
+            background: "var(--surface-1)",
             zIndex: 1,
             gap: "clamp(8px, 2vw, 12px)",
           }}
@@ -327,22 +327,22 @@ export default function DeviceSelector({
               style={{
                 fontWeight: 700,
                 fontSize: "clamp(0.9rem, 3vw, 1.05rem)",
-                color: "#0C4A6E",
+                color: "var(--text-1)",
               }}
             >
               Audio & Video Settings
             </div>
-            <div style={{ color: "#0369A1", fontSize: "clamp(0.7rem, 1.5vw, 0.78rem)", marginTop: "clamp(1px, 0.5vw, 2px)" }}>
+            <div style={{ color: "var(--text-2)", fontSize: "clamp(0.7rem, 1.5vw, 0.78rem)", marginTop: "clamp(1px, 0.5vw, 2px)" }}>
               Changes apply instantly to your call
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: "#E0F2FE",
-              border: "1px solid #BAE6FD",
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
               borderRadius: "8px",
-              color: "#0369A1",
+              color: "var(--text-2)",
               width: "clamp(32px, 8vw, 40px)",
               height: "clamp(32px, 8vw, 40px)",
               cursor: "pointer",
@@ -395,7 +395,7 @@ export default function DeviceSelector({
           />
 
           {speakers.length === 0 && (
-            <p style={{ color: "#38BDF8", fontSize: "0.78rem", marginTop: "-16px" }}>
+            <p style={{ color: "var(--text-3)", fontSize: "0.78rem", marginTop: "-16px" }}>
               Speaker selection requires Chrome or Edge.
             </p>
           )}

@@ -50,7 +50,7 @@ export default function RecordingIndicator({
           width: "clamp(8px, 1.5vw, 10px)",
           height: "clamp(8px, 1.5vw, 10px)",
           borderRadius: "50%",
-          background: isPaused ? "#D97706" : "#DC2626",
+          background: isPaused ? "var(--warn-text)" : "var(--danger)",
           flexShrink: 0,
           animation: isPaused ? "none" : "blink 1.2s ease infinite",
         }}
@@ -59,7 +59,7 @@ export default function RecordingIndicator({
       {/* Label */}
       <span
         style={{
-          color: "#F9FAFB",
+          color: "var(--on-well)",
           fontSize: "clamp(0.7rem, 1.5vw, 0.82rem)",
           fontWeight: 600,
           letterSpacing: "0.03em",
@@ -71,7 +71,7 @@ export default function RecordingIndicator({
       {/* Timer */}
       <span
         style={{
-          color: isPaused ? "#F59E0B" : "#F87171",
+          color: isPaused ? "var(--warn)" : "var(--danger-text)",
           fontSize: "clamp(0.75rem, 1.5vw, 0.88rem)",
           fontWeight: 700,
           fontFamily: "monospace",
@@ -91,7 +91,7 @@ export default function RecordingIndicator({
           background: "rgba(255,255,255,0.08)",
           border: "1px solid rgba(255,255,255,0.12)",
           borderRadius: "clamp(6px, 1.5vw, 8px)",
-          color: "#e8e8f0",
+          color: "var(--on-well)",
           padding: "clamp(3px, 1vw, 4px) clamp(6px, 1.5vw, 10px)",
           cursor: "pointer",
           fontSize: "clamp(0.7rem, 1.5vw, 0.8rem)",
@@ -116,10 +116,10 @@ export default function RecordingIndicator({
         onClick={onStop}
         title="Stop recording and download"
         style={{
-          background: "#DC2626",
+          background: "var(--danger)",
           border: "1px solid rgba(255,255,255,0.15)",
           borderRadius: "clamp(6px, 1.5vw, 8px)",
-          color: "#fff",
+          color: "var(--on-accent)",
           padding: "clamp(3px, 1vw, 4px) clamp(8px, 1.5vw, 12px)",
           cursor: "pointer",
           fontSize: "clamp(0.7rem, 1.5vw, 0.8rem)",

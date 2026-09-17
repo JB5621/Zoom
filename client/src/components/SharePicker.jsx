@@ -71,7 +71,7 @@ export default function SharePicker({ onShare, onClose }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(12,74,110,0.4)",
+        background: "var(--scrim)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -81,12 +81,12 @@ export default function SharePicker({ onShare, onClose }) {
     >
       <div
         style={{
-          background: "#FFFFFF",
-          border: "1px solid #BAE6FD",
+          background: "var(--surface-1)",
+          border: "1px solid var(--border)",
           borderRadius: "14px",
           width: "100%",
           maxWidth: "480px",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
+          boxShadow: "var(--shadow-modal)",
           overflow: "hidden",
         }}
       >
@@ -94,7 +94,7 @@ export default function SharePicker({ onShare, onClose }) {
         <div
           style={{
             padding: "22px 24px 18px",
-            borderBottom: "1px solid #BAE6FD",
+            borderBottom: "1px solid var(--border)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -105,22 +105,22 @@ export default function SharePicker({ onShare, onClose }) {
               style={{
                 fontWeight: 700,
                 fontSize: "1.05rem",
-                color: "#0C4A6E",
+                color: "var(--text-1)",
               }}
             >
               Share Your Screen
             </div>
-            <div style={{ color: "#0369A1", fontSize: "0.78rem", marginTop: "3px" }}>
+            <div style={{ color: "var(--text-2)", fontSize: "0.78rem", marginTop: "3px" }}>
               Choose what to show participants
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: "#E0F2FE",
-              border: "1px solid #BAE6FD",
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
               borderRadius: "8px",
-              color: "#0369A1",
+              color: "var(--text-2)",
               width: 32,
               height: 32,
               cursor: "pointer",
@@ -146,22 +146,22 @@ export default function SharePicker({ onShare, onClose }) {
                 alignItems: "center",
                 gap: "16px",
                 padding: "16px 18px",
-                background: "#FFFFFF",
-                border: "1px solid #BAE6FD",
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
                 borderRadius: "10px",
                 cursor: "pointer",
                 textAlign: "left",
                 width: "100%",
-                color: "#0C4A6E",
+                color: "var(--text-1)",
                 fontFamily: "inherit",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#F0F9FF";
-                e.currentTarget.style.borderColor = "#BAE6FD";
+                e.currentTarget.style.background = "var(--accent-soft)";
+                e.currentTarget.style.borderColor = "var(--accent)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#FFFFFF";
-                e.currentTarget.style.borderColor = "#BAE6FD";
+                e.currentTarget.style.background = "var(--surface-2)";
+                e.currentTarget.style.borderColor = "var(--border)";
               }}
             >
               <span
@@ -171,10 +171,10 @@ export default function SharePicker({ onShare, onClose }) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: "#E0F2FE",
+                  background: "var(--surface-3)",
                   borderRadius: "10px",
                   flexShrink: 0,
-                  color: "#0EA5E9",
+                  color: "var(--accent-text)",
                 }}
               >
                 {opt.icon}
@@ -184,23 +184,23 @@ export default function SharePicker({ onShare, onClose }) {
                   style={{
                     fontWeight: 600,
                     fontSize: "0.95rem",
-                    color: "#0C4A6E",
+                    color: "var(--text-1)",
                     marginBottom: "3px",
                   }}
                 >
                   {opt.title}
                 </div>
-                <div style={{ color: "#0369A1", fontSize: "0.82rem" }}>
+                <div style={{ color: "var(--text-2)", fontSize: "0.82rem" }}>
                   {opt.desc}
                 </div>
               </div>
-              <span style={{ color: "#38BDF8", fontSize: "1.1rem" }}>›</span>
+              <span style={{ color: "var(--text-3)", fontSize: "1.1rem" }}>›</span>
             </button>
           ))}
 
           <p
             style={{
-              color: "#38BDF8",
+              color: "var(--text-3)",
               fontSize: "0.75rem",
               textAlign: "center",
               marginTop: "4px",

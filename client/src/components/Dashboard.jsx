@@ -5,17 +5,17 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import S, { focusInput, blurInput } from "./pageStyles";
+import ThemeToggle from "./ThemeToggle";
 
-const API_BASE = (import.meta.env.VITE_SERVER_URL || "").replace(/\/$/, "");
-
-function apiUrl(path) {
-  return API_BASE ? `${API_BASE}${path}` : path;
-}
+import { createRoom, lookupRoom, verifyRoomPassword } from "../lib/roomAccess";
 
 export default function Dashboard() {
   const { user, submitting, logout } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [roomCode, setRoomCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [joinPassword, setJoinPassword] = useState("");
+  const [needsPassword, setNeedsPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -29,14 +29,19 @@ export default function Dashboard() {
   async function handleCreate() {
     const meetingName = displayName.trim() || user?.name || "";
     if (!meetingName) return setError("Please enter your name first.");
+    const pwd = newPassword.trim();
+    if (pwd && pwd.length < 4) return setError("Room password must be at least 4 characters.");
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(apiUrl("/api/rooms"), { method: "POST" });
-      const { roomId } = await res.json();
-      navigate(`/room/${roomId}?name=${encodeURIComponent(meetingName)}`);
-    } catch {
-      setError("Failed to create room. Is the server running?");
+      const { roomId } = await createRoom(pwd);
+      // The password rides along in the URL only for the host, so the invite
+      // panel can show it. It is never part of the shared link or the QR.
+      const q = new URLSearchParams({ name: meetingName });
+      if (pwd) q.set("pwd", pwd);
+      navigate(`/room/${roomId}?${q.toString()}`);
+    } catch (err) {
+      setError(err.message || "Failed to create room. Is the server running?");
     } finally {
       setLoading(false);
     }
@@ -50,11 +55,20 @@ export default function Dashboard() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(apiUrl(`/api/rooms/${code}`));
-      if (!res.ok) return setError("Room not found. Check the code and try again.");
+      const room = await lookupRoom(code);
+      if (!room.exists) return setError("Room not found. Check the code and try again.");
+
+      if (room.hasPassword) {
+        // First press reveals the field; the second one submits it.
+        if (!joinPassword) {
+          setNeedsPassword(true);
+          return setError("This meeting needs a password.");
+        }
+        await verifyRoomPassword(code, joinPassword);
+      }
       navigate(`/room/${code}?name=${encodeURIComponent(meetingName)}`);
-    } catch {
-      setError("Could not connect to server.");
+    } catch (err) {
+      setError(err.message || "Could not connect to server.");
     } finally {
       setLoading(false);
     }
@@ -62,6 +76,7 @@ export default function Dashboard() {
 
   return (
     <div className="home-page" style={S.page}>
+      <ThemeToggle />
       <div style={S.logo}>ZoomClone</div>
       <p style={S.tagline}>Welcome back, {user.name}.</p>
 
@@ -87,12 +102,24 @@ export default function Dashboard() {
           onBlur={blurInput}
         />
 
+        <label style={S.label}>Meeting password (optional)</label>
+        <input
+          type="password"
+          style={S.nameInput}
+          placeholder="Leave blank for no password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+          onFocus={focusInput}
+          onBlur={blurInput}
+        />
+
         <button
           style={S.btnPrimary}
           onClick={handleCreate}
           disabled={loading}
-          onMouseEnter={(e) => { e.target.style.background = "#0284C7"; }}
-          onMouseLeave={(e) => { e.target.style.background = "#0EA5E9"; }}
+          onMouseEnter={(e) => { e.target.style.background = "var(--accent-hover)"; }}
+          onMouseLeave={(e) => { e.target.style.background = "var(--accent)"; }}
         >
           {loading ? "Creating..." : "New Meeting"}
         </button>
@@ -109,7 +136,10 @@ export default function Dashboard() {
             style={S.joinInput}
             placeholder="e.g. A3F9B21C"
             value={roomCode}
-            onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+            onChange={(e) => {
+              setRoomCode(e.target.value.toUpperCase());
+              if (needsPassword) { setNeedsPassword(false); setJoinPassword(""); }
+            }}
             onKeyDown={(e) => e.key === "Enter" && handleJoin()}
             onFocus={focusInput}
             onBlur={blurInput}
@@ -119,17 +149,34 @@ export default function Dashboard() {
             style={S.btnSecondary}
             onClick={handleJoin}
             disabled={loading}
-            onMouseEnter={(e) => { e.target.style.background = "#E0F2FE"; }}
-            onMouseLeave={(e) => { e.target.style.background = "#FFFFFF"; }}
+            onMouseEnter={(e) => { e.target.style.background = "var(--surface-3)"; }}
+            onMouseLeave={(e) => { e.target.style.background = "var(--surface-2)"; }}
           >
             Join
           </button>
         </div>
 
+        {needsPassword && (
+          <>
+            <label style={{ ...S.label, marginTop: "12px" }}>Meeting password</label>
+            <input
+              type="password"
+              autoFocus
+              style={S.nameInput}
+              placeholder="Password for this room"
+              value={joinPassword}
+              onChange={(e) => setJoinPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+              onFocus={focusInput}
+              onBlur={blurInput}
+            />
+          </>
+        )}
+
         {error && <div style={S.error}>{error}</div>}
       </div>
 
-      <p style={{ color: "#38BDF8", fontSize: "0.78rem", marginTop: "32px", textAlign: "center" }}>
+      <p style={{ color: "var(--text-3)", fontSize: "0.78rem", marginTop: "32px", textAlign: "center" }}>
         Powered by WebRTC · Accounts stored in a local JSON database
       </p>
     </div>

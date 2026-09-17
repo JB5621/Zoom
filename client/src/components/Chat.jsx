@@ -35,8 +35,8 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
         top: 0,
         bottom: 0,
         width: "clamp(280px, 30vw, 340px)",
-        background: "#FFFFFF",
-        borderLeft: "1px solid #BAE6FD",
+        background: "var(--surface-1)",
+        borderLeft: "1px solid var(--border)",
         display: "flex",
         flexDirection: "column",
         zIndex: 200,
@@ -46,7 +46,7 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
       <div
         style={{
           padding: "clamp(12px, 3vw, 20px) clamp(12px, 3vw, 20px) clamp(10px, 3vw, 16px)",
-          borderBottom: "1px solid #BAE6FD",
+          borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -56,7 +56,7 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
           style={{
             fontWeight: 700,
             fontSize: "clamp(0.9rem, 3vw, 1.05rem)",
-            color: "#0C4A6E",
+            color: "var(--text-1)",
           }}
         >
           Chat
@@ -65,10 +65,10 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
           onClick={onClose}
           aria-label="Close chat"
           style={{
-            background: "#E0F2FE",
-            border: "1px solid #BAE6FD",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)",
             borderRadius: "8px",
-            color: "#0369A1",
+            color: "var(--text-2)",
             width: "clamp(32px, 8vw, 40px)",
             height: "clamp(32px, 8vw, 40px)",
             minWidth: "44px",
@@ -98,7 +98,7 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
       >
         {messages.length === 0 && (
           <p style={{
-            color: "#38BDF8", fontSize: "clamp(0.8rem, 2vw, 0.88rem)",
+            color: "var(--text-3)", fontSize: "clamp(0.8rem, 2vw, 0.88rem)",
             textAlign: "center", marginTop: "40px", fontStyle: "italic"
           }}>
             No messages yet. Be the first to say hello!
@@ -118,7 +118,7 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
             >
               {!isMe && (
                 <span style={{
-                  color: "#38BDF8", fontSize: "clamp(0.65rem, 1.5vw, 0.73rem)",
+                  color: "var(--text-3)", fontSize: "clamp(0.65rem, 1.5vw, 0.73rem)",
                   marginBottom: "clamp(3px, 1vw, 6px)", fontWeight: 600,
                   letterSpacing: "0.02em"
                 }}>
@@ -130,18 +130,18 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
                   maxWidth: "min(85%, 28rem)",
                   padding: "clamp(8px, 2vw, 11px) clamp(10px, 2vw, 15px)",
                   borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px",
-                  background: isMe ? "#0EA5E9" : "#E0F2FE",
-                  color: isMe ? "#FFFFFF" : "#0C4A6E",
+                  background: isMe ? "var(--accent)" : "var(--surface-2)",
+                  color: isMe ? "var(--on-accent)" : "var(--text-1)",
                   fontSize: "clamp(0.8rem, 2vw, 0.88rem)",
                   lineHeight: 1.45,
                   wordBreak: "break-word",
-                  border: isMe ? "none" : "1px solid #BAE6FD",
+                  border: isMe ? "none" : "1px solid var(--border)",
                 }}
               >
                 {msg.message}
               </div>
               <span style={{
-                color: "#38BDF8", fontSize: "clamp(0.6rem, 1.5vw, 0.68rem)",
+                color: "var(--text-3)", fontSize: "clamp(0.6rem, 1.5vw, 0.68rem)",
                 marginTop: "clamp(2px, 0.5vw, 4px)"
               }}>
                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -156,7 +156,7 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
       <div
         style={{
           padding: "clamp(8px, 2vw, 12px) clamp(10px, 2vw, 16px) clamp(16px, 3vw, 24px)",
-          borderTop: "1px solid #BAE6FD",
+          borderTop: "1px solid var(--border)",
           display: "flex",
           gap: "clamp(6px, 1.5vw, 8px)",
         }}
@@ -168,22 +168,22 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
           placeholder="Type a message..."
           style={{
             flex: 1,
-            background: "#E0F2FE",
-            border: "1px solid #7DD3FC",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border-strong)",
             borderRadius: "8px",
             padding: "clamp(8px, 2vw, 11px) clamp(10px, 2vw, 15px)",
-            color: "#0C4A6E",
+            color: "var(--text-1)",
             fontSize: "clamp(0.8rem, 2vw, 0.88rem)",
             outline: "none",
             fontFamily: "inherit",
             minHeight: "44px",
           }}
           onFocus={(e) => {
-            e.target.style.borderColor = "#0EA5E9";
-            e.target.style.boxShadow = "0 0 0 3px rgba(14,165,233,0.15)";
+            e.target.style.borderColor = "var(--accent)";
+            e.target.style.boxShadow = "var(--ring)";
           }}
           onBlur={(e) => {
-            e.target.style.borderColor = "#7DD3FC";
+            e.target.style.borderColor = "var(--border-strong)";
             e.target.style.boxShadow = "none";
           }}
         />
@@ -191,10 +191,10 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
           onClick={handleSend}
           style={{
             padding: "clamp(8px, 2vw, 11px) clamp(10px, 2vw, 16px)",
-            background: "#0EA5E9",
+            background: "var(--accent)",
             border: "none",
             borderRadius: "8px",
-            color: "#fff",
+            color: "var(--on-accent)",
             fontWeight: 700,
             cursor: "pointer",
             fontSize: "clamp(0.8rem, 2vw, 1rem)",
@@ -204,8 +204,8 @@ export default function Chat({ messages, onSend, mySocketId, onClose }) {
             alignItems: "center",
             justifyContent: "center",
           }}
-          onMouseEnter={(e) => { e.target.style.background = "#0284C7"; }}
-          onMouseLeave={(e) => { e.target.style.background = "#0EA5E9"; }}
+          onMouseEnter={(e) => { e.target.style.background = "var(--accent-hover)"; }}
+          onMouseLeave={(e) => { e.target.style.background = "var(--accent)"; }}
         >
           ↑
         </button>

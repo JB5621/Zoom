@@ -64,10 +64,28 @@ function isPortOpen(host, port) {
   });
 }
 
+// Does whatever is listening on this port speak TLS? When we reuse a
+// backend somebody else started we cannot assume it matches the scheme we
+// would have chosen, and guessing wrong makes every /api call fail.
+function detectScheme(host, port) {
+  return new Promise((resolve) => {
+    const tls = require('tls');
+    const socket = tls.connect(
+      { host, port, rejectUnauthorized: false, servername: host },
+      () => { socket.destroy(); resolve('https'); }
+    );
+    socket.setTimeout(1000);
+    socket.once('timeout', () => { socket.destroy(); resolve('http'); });
+    socket.once('error', () => { socket.destroy(); resolve('http'); });
+  });
+}
+
 (async () => {
   serverWasAlreadyRunning = await isPortOpen('127.0.0.1', 5000);
+  let apiScheme = 'https'; // what we start ourselves, below
   if (serverWasAlreadyRunning) {
-    console.log('Port 5000 is already in use; reusing the existing backend server.');
+    apiScheme = await detectScheme('127.0.0.1', 5000);
+    console.log(`Port 5000 is already in use; reusing the existing backend server (${apiScheme}).`);
   } else {
     // ensure certs exist for HTTPS
     try {
@@ -102,10 +120,17 @@ function isPortOpen(host, port) {
         VITE_DEV_PORT: '5173',
         VITE_SSL_KEY_PATH: path.join(root, 'server', 'certs', 'localhost-key.pem'),
         VITE_SSL_CERT_PATH: path.join(root, 'server', 'certs', 'localhost.pem'),
-        VITE_SERVER_URL: 'https://localhost:5000',
+        // Proxy target only — not exposed to the browser. The client keeps
+        // using relative /api and /socket.io and reaches the backend through
+        // this dev server, so the page never has to trust the backend's
+        // self-signed certificate and never makes a cross-origin request.
+        DEV_API_TARGET: `${apiScheme}://localhost:5000`,
+        // Explicitly cleared: if it leaks in from the ambient environment
+        // the browser would call the backend directly and bypass the proxy.
+        VITE_SERVER_URL: '',
       },
     });
   }
 
-  console.log('HTTPS client will run on https://localhost:5173 and use the backend on port 5000.');
+  console.log(`HTTPS client will run on https://localhost:5173 and proxy /api to ${apiScheme}://localhost:5000`);
 })();

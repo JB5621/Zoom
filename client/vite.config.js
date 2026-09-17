@@ -15,11 +15,17 @@ export default defineConfig({
   server: (() => {
     const host = true;
     const port = Number(process.env.VITE_DEV_PORT || 5173);
+    // Proxy target. DEV_API_TARGET deliberately has no VITE_ prefix so it
+    // is NOT exposed to the browser bundle: it configures where this dev
+    // server forwards /api, while the client keeps using same-origin
+    // relative URLs. VITE_SERVER_URL, by contrast, IS exposed and makes
+    // the browser call the backend directly, which reintroduces both CORS
+    // and self-signed-certificate trust as failure modes.
     // Defaults to plain HTTP to match server.js's own default (it only
     // switches to HTTPS when HTTPS=true or SSL cert files are present —
     // neither is true out of the box, so proxying to https:// here would
     // fail the TLS handshake and every /api/* call would 502).
-    const apiTarget = (process.env.VITE_SERVER_URL || 'http://localhost:5000').replace(/\/$/, '');
+    const apiTarget = (process.env.DEV_API_TARGET || process.env.VITE_SERVER_URL || 'http://localhost:5000').replace(/\/$/, '');
 
     // If explicit SSL key/cert paths are provided, use them so the dev server
     // can serve HTTPS on LAN IPs (cert must include the LAN IP in SAN).

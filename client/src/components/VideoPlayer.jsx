@@ -24,10 +24,10 @@ function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, pee
 
   return (
     <div style={{
-      position:"relative", background:"#18181D", borderRadius:"10px",
+      position:"relative", background:"var(--well)", borderRadius:"10px",
       overflow:"hidden", border: isAdmin
-        ? "2px solid #F59E0B"
-        : "1px solid rgba(255,255,255,0.08)",
+        ? "2px solid var(--warn)"
+        : "1px solid var(--border)",
       display:"flex", alignItems:"center", justifyContent:"center",
       ...style,
     }}>
@@ -47,9 +47,9 @@ function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, pee
       {isVideoOff && (
         <div style={{
           width:"clamp(48px, 15vw, 72px)", height:"clamp(48px, 15vw, 72px)", borderRadius:"50%",
-          background:"#0EA5E9",
+          background:"var(--accent)",
           display:"flex", alignItems:"center", justifyContent:"center",
-          fontWeight:700, fontSize:"clamp(1rem, 3vw, 1.6rem)", color:"#fff",
+          fontWeight:700, fontSize:"clamp(1rem, 3vw, 1.6rem)", color:"var(--on-accent)",
         }}>
           {initials}
         </div>
@@ -59,13 +59,13 @@ function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, pee
       {isAdmin && (
         <div style={{
           position:"absolute", top:"clamp(6px, 2vw, 10px)", right:"clamp(6px, 2vw, 10px)",
-          background:"rgba(0,0,0,0.6)",
+          background:"var(--chip-dark)",
           border:"1px solid rgba(245,158,11,0.5)",
           borderRadius:"6px", padding:"clamp(2px, 1vw, 3px) clamp(5px, 1.5vw, 8px)",
           display:"flex", alignItems:"center", gap:"clamp(3px, 1vw, 5px)",
         }}>
           <span style={{
-            color:"#F59E0B", fontSize:"clamp(0.55rem, 1.5vw, 0.68rem)", fontWeight:700,
+            color:"var(--warn)", fontSize:"clamp(0.55rem, 1.5vw, 0.68rem)", fontWeight:700,
             letterSpacing:"0.06em",
           }}>ADMIN</span>
         </div>
@@ -86,13 +86,13 @@ function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, pee
           {label || "Unknown"}{isLocal && " (You)"}
         </span>
         {isAdmin && (
-          <span style={{ color:"#F59E0B", fontSize:"clamp(0.6rem, 1.5vw, 0.7rem)", fontWeight:700 }}>ADMIN</span>
+          <span style={{ color:"var(--warn)", fontSize:"clamp(0.6rem, 1.5vw, 0.7rem)", fontWeight:700 }}>ADMIN</span>
         )}
         {isMuted && (
           <span style={{
-            marginLeft:"auto", background:"#DC2626", borderRadius:"clamp(4px, 1vw, 6px)",
+            marginLeft:"auto", background:"var(--danger)", borderRadius:"clamp(4px, 1vw, 6px)",
             padding:"clamp(1px, 0.5vw, 2px) clamp(4px, 1vw, 7px)", fontSize:"clamp(0.6rem, 1.5vw, 0.7rem)", 
-            color:"#fff", fontWeight:600, flexShrink:0,
+            color:"var(--on-accent)", fontWeight:600, flexShrink:0,
           }}>MUTED</span>
         )}
       </div>

@@ -3,12 +3,19 @@
 // ============================================================
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
+import { CAMERA_CONSTRAINTS, tuneSender, tuneAllSenders, setContentHints } from "./mediaTuning";
+import { getRoomPass, verifyRoomPassword } from "../lib/roomAccess";
 
 const ICE = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
   ],
+  // Start gathering as soon as the connection object exists rather than
+  // waiting for createOffer, so the first offer already carries candidates.
+  iceCandidatePoolSize: 4,
+  bundlePolicy: "max-bundle",
+  rtcpMuxPolicy: "require",
 };
 
 export function useWebRTC(roomId, userName, interpreterToken = null) {
@@ -30,6 +37,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
   const [myRole,          setMyRole]          = useState(interpreterToken ? "interpreter" : "participant");
   const [myChannelInfo,   setMyChannelInfo]   = useState(null);
   const [interpreterError,setInterpreterError]= useState(null);
+  const [joinError,       setJoinError]       = useState(null);
 
   // ── Interpretation state (managed here so socket is ready) ───
   const [channels,    setChannels]    = useState([]);
@@ -68,6 +76,12 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
       pc.addTrack(track, localStreamRef.current);
     });
 
+    // Give the encoder an explicit budget. Without this Chrome settles on a
+    // conservative default and reports qualityLimitationReason "bandwidth".
+    tuneSender(pc, Object.keys(peersRef.current).length + 1, {
+      screenShare: !!screenStreamRef.current,
+    });
+
     const remoteStream = new MediaStream();
     
     pc.ontrack = e => {
@@ -86,11 +100,28 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     };
 
     pc.onconnectionstatechange = () => {
-      if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
+      const state = pc.connectionState;
+
+      // "disconnected" is usually a short network blip that ICE recovers
+      // from on its own. Closing here (as this used to) threw away a
+      // working connection and forced a full re-negotiation, which is
+      // seconds of black video for something that often self-heals.
+      if (state === "failed") {
+        if (typeof pc.restartIce === "function" && !pc.__restarted) {
+          pc.__restarted = true;
+          console.warn(`[connectionstatechange] restarting ICE to ${targetId}`);
+          pc.restartIce();
+          return;
+        }
         console.warn(`[connectionstatechange] Closing connection to ${targetId}`);
         pc.close();
         delete peersRef.current[targetId];
         removePeer(targetId);
+      } else if (state === "closed") {
+        delete peersRef.current[targetId];
+        removePeer(targetId);
+      } else if (state === "connected") {
+        pc.__restarted = false;
       }
     };
 
@@ -120,7 +151,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
       try {
         const constraints = interpreterToken
           ? { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
-          : { video: { width: 1280, height: 720 }, audio: { echoCancellation: true, noiseSuppression: true } };
+          : CAMERA_CONSTRAINTS;
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (!mounted) { 
@@ -128,6 +159,8 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
           return; 
         }
 
+        // Tell the encoder these are faces and speech, not a slideshow.
+        setContentHints(stream);
         localStreamRef.current = stream;
         setLocalStream(stream);
         const vt = stream.getVideoTracks()[0];
@@ -157,7 +190,9 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
           if (interpreterToken) {
             socket.emit("join-as-interpreter", { token: interpreterToken, userName });
           } else {
-            socket.emit("join-room", { roomId, userName });
+            // Re-read on every connect: socket.io reconnects re-run this and
+            // the pass may have been obtained since the first attempt.
+            socket.emit("join-room", { roomId, userName, pass: getRoomPass(roomId) });
           }
         });
 
@@ -220,6 +255,10 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         socket.on("interpreter-confirmed", ({ channel }) => {
           setMyRole("interpreter");
           setMyChannelInfo(channel);
+        });
+
+        socket.on("join-error", ({ code, message }) => {
+          setJoinError({ code: code || "join-failed", message });
         });
 
         socket.on("interpreter-error", ({ message }) => setInterpreterError(message));
@@ -382,11 +421,15 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
 
   const startPresentation = useCallback(async captureStream => {
     screenStreamRef.current = captureStream;
+    setContentHints(captureStream, { screenShare: true });
     const st = captureStream.getVideoTracks()[0];
     Object.values(peersRef.current).forEach(pc => {
       const s = pc.getSenders().find(s => s.track?.kind === "video");
       if (s) s.replaceTrack(st);
     });
+    // Screen content needs the opposite trade-off from a face: hold
+    // resolution so text stays readable and let the frame rate drop.
+    tuneAllSenders(peersRef.current, { screenShare: true });
     const lv = localStreamRef.current?.getVideoTracks()[0];
     if (lv) localStreamRef.current.removeTrack(lv);
     localStreamRef.current.addTrack(st);
@@ -399,12 +442,14 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
   const stopPresentation = useCallback(async () => {
     screenStreamRef.current?.getTracks().forEach(t => t.stop());
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+      const s = await navigator.mediaDevices.getUserMedia({ video: CAMERA_CONSTRAINTS.video });
+      setContentHints(s);
       const t = s.getVideoTracks()[0];
       Object.values(peersRef.current).forEach(pc => {
         const sender = pc.getSenders().find(s => s.track?.kind === "video");
         if (sender) sender.replaceTrack(t);
       });
+      tuneAllSenders(peersRef.current);
       const old = localStreamRef.current?.getVideoTracks()[0];
       if (old) localStreamRef.current.removeTrack(old);
       localStreamRef.current.addTrack(t);
@@ -430,7 +475,29 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
   const myId = socketRef.current?.id;
   const iAmPresenting = presenterId === myId;
 
+  // Called by the password gate: verify, cache the pass, then re-emit the
+  // join on the existing socket so nothing has to be torn down.
+  const submitRoomPassword = useCallback(async (password) => {
+    await verifyRoomPassword(roomId, password);
+    setJoinError(null);
+    socketRef.current?.emit("join-room", {
+      roomId, userName, pass: getRoomPass(roomId),
+    });
+  }, [roomId, userName]);
+
+  // Re-apply the budget whenever the call size changes. In a mesh your
+  // upstream is multiplied by the number of people you send to, so the
+  // per-peer bitrate has to come down as the room fills up (and back up
+  // again when it empties).
+  const peerCount = Object.keys(peers).length;
+  useEffect(() => {
+    if (peerCount === 0) return;
+    tuneAllSenders(peersRef.current, { screenShare: isSharingScreen });
+  }, [peerCount, isSharingScreen]);
+
+
   return {
+    joinError, submitRoomPassword,
     localStream, peers, interpreterIds,
     isMuted, isVideoOff, isSharingScreen,
     messages, error, isConnected,

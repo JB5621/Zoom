@@ -1,6 +1,7 @@
 // ============================================================
 // pageStyles.jsx — shared styles for Login / Register / Dashboard /
-// InterpreterJoin — flat, light, minimal design system
+// InterpreterJoin. Colours come from the tokens in index.css; nothing
+// here hardcodes a hex, so retheming happens in one place.
 // ============================================================
 import React from "react";
 
@@ -12,18 +13,18 @@ const S = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    background: "#EFF8FF",
+    background: "var(--bg)",
     padding: "clamp(16px, 5vw, 24px)",
   },
   logo: {
     fontWeight: 800,
     fontSize: "clamp(1.5rem, 6vw, 2.25rem)",
     letterSpacing: "-0.03em",
-    color: "#0C4A6E",
+    color: "var(--text-1)",
     marginBottom: "clamp(6px, 2vw, 10px)",
   },
   tagline: {
-    color: "#0369A1",
+    color: "var(--text-2)",
     fontSize: "clamp(0.9rem, 4vw, 1rem)",
     fontWeight: 400,
     marginBottom: "clamp(28px, 6vw, 40px)",
@@ -31,8 +32,8 @@ const S = {
     maxWidth: "90vw",
   },
   card: {
-    background: "#FFFFFF",
-    border: "1px solid #BAE6FD",
+    background: "var(--surface-1)",
+    border: "1px solid var(--border)",
     borderRadius: "12px",
     padding: "clamp(24px, 6vw, 40px)",
     width: "100%",
@@ -43,7 +44,7 @@ const S = {
     gridTemplateColumns: "repeat(2, 1fr)",
     gap: "4px",
     marginBottom: "24px",
-    background: "#E0F2FE",
+    background: "var(--bg)",
     padding: "4px",
     borderRadius: "8px",
   },
@@ -52,7 +53,7 @@ const S = {
     borderRadius: "6px",
     padding: "10px 14px",
     background: "transparent",
-    color: "#0369A1",
+    color: "var(--text-2)",
     fontWeight: 600,
     fontSize: "0.9rem",
     cursor: "pointer",
@@ -61,23 +62,23 @@ const S = {
     display: "block",
   },
   authTabActive: {
-    background: "#FFFFFF",
-    color: "#0C4A6E",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+    background: "var(--surface-2)",
+    color: "var(--text-1)",
+    boxShadow: "var(--shadow-sm)",
   },
   authHint: {
-    color: "#0369A1",
+    color: "var(--text-2)",
     fontSize: "0.85rem",
     lineHeight: 1.5,
     marginBottom: "20px",
   },
   nameInput: {
     width: "100%",
-    background: "#FFFFFF",
-    border: "1px solid #7DD3FC",
+    background: "var(--surface-2)",
+    border: "1px solid var(--border-strong)",
     borderRadius: "8px",
     padding: "clamp(10px, 3vw, 12px) clamp(12px, 3vw, 14px)",
-    color: "#0C4A6E",
+    color: "var(--text-1)",
     fontSize: "clamp(0.875rem, 3vw, 0.95rem)",
     outline: "none",
     transition: "border-color 0.15s ease, box-shadow 0.15s ease",
@@ -85,8 +86,8 @@ const S = {
     fontFamily: "inherit",
   },
   nameInputFocus: {
-    borderColor: "#0EA5E9",
-    boxShadow: "0 0 0 3px rgba(14,165,233,0.15)",
+    borderColor: "var(--accent)",
+    boxShadow: "var(--ring)",
   },
   divider: {
     display: "flex",
@@ -97,10 +98,10 @@ const S = {
   dividerLine: {
     flex: 1,
     height: "1px",
-    background: "#BAE6FD",
+    background: "var(--border)",
   },
   dividerText: {
-    color: "#38BDF8",
+    color: "var(--text-3)",
     fontSize: "0.7rem",
     textTransform: "uppercase",
     letterSpacing: "0.1em",
@@ -109,10 +110,10 @@ const S = {
   btnPrimary: {
     width: "100%",
     padding: "clamp(11px, 3vw, 12px)",
-    background: "#0EA5E9",
+    background: "var(--accent)",
     border: "none",
     borderRadius: "8px",
-    color: "#FFFFFF",
+    color: "var(--on-accent)",
     fontWeight: 600,
     fontSize: "0.9rem",
     cursor: "pointer",
@@ -128,11 +129,11 @@ const S = {
   joinInput: {
     flex: 1,
     minWidth: "clamp(120px, 100%, 200px)",
-    background: "#FFFFFF",
-    border: "1px solid #7DD3FC",
+    background: "var(--surface-2)",
+    border: "1px solid var(--border-strong)",
     borderRadius: "8px",
     padding: "clamp(10px, 3vw, 12px) clamp(12px, 3vw, 14px)",
-    color: "#0C4A6E",
+    color: "var(--text-1)",
     fontSize: "clamp(0.875rem, 3vw, 0.95rem)",
     outline: "none",
     fontFamily: "inherit",
@@ -141,10 +142,10 @@ const S = {
   },
   btnSecondary: {
     padding: "clamp(10px, 3vw, 12px) clamp(14px, 3vw, 18px)",
-    background: "#FFFFFF",
-    border: "1px solid #7DD3FC",
+    background: "var(--surface-2)",
+    border: "1px solid var(--border-strong)",
     borderRadius: "8px",
-    color: "#0C4A6E",
+    color: "var(--text-1)",
     fontWeight: 600,
     fontSize: "0.9rem",
     cursor: "pointer",
@@ -154,7 +155,7 @@ const S = {
     minWidth: "44px",
   },
   label: {
-    color: "#0369A1",
+    color: "var(--text-2)",
     fontSize: "0.75rem",
     marginBottom: "6px",
     display: "block",
@@ -163,14 +164,14 @@ const S = {
     textTransform: "uppercase",
   },
   error: {
-    color: "#DC2626",
+    color: "var(--danger-text)",
     fontSize: "0.82rem",
     marginTop: "14px",
     textAlign: "center",
     padding: "10px 14px",
-    background: "#FEF2F2",
+    background: "var(--danger-soft)",
     borderRadius: "8px",
-    border: "1px solid #FECACA",
+    border: "1px solid var(--danger-border)",
   },
   accountBar: {
     width: "100%",
@@ -182,23 +183,23 @@ const S = {
     marginBottom: "16px",
     padding: "12px 16px",
     borderRadius: "10px",
-    background: "#FFFFFF",
-    border: "1px solid #BAE6FD",
+    background: "var(--surface-1)",
+    border: "1px solid var(--border)",
   },
   accountText: {
-    color: "#0C4A6E",
+    color: "var(--text-1)",
     fontSize: "0.9rem",
     fontWeight: 600,
   },
   accountSubtext: {
-    color: "#0369A1",
+    color: "var(--text-2)",
     fontSize: "0.78rem",
     marginTop: "2px",
   },
   logoutBtn: {
-    border: "1px solid #7DD3FC",
-    background: "#FFFFFF",
-    color: "#0C4A6E",
+    border: "1px solid var(--border-strong)",
+    background: "var(--surface-2)",
+    color: "var(--text-1)",
     borderRadius: "8px",
     padding: "8px 14px",
     fontWeight: 600,
@@ -216,7 +217,7 @@ export function focusInput(e) {
 }
 
 export function blurInput(e) {
-  e.target.style.borderColor = "#7DD3FC";
+  e.target.style.borderColor = "var(--border-strong)";
   e.target.style.boxShadow = "none";
 }
 

@@ -14,7 +14,7 @@ A fully functional Zoom-like video conferencing app built with:
 - 💬 **Live Chat** — Text messaging during meetings
 - 🌐 **Language Interpretation** — Support for 35+ languages including Turkmen & Russian
 - 🎥 **Recording** — Record meetings locally
-- 🎨 **Modern UI** — Beautiful glassmorphic design with smooth animations
+- 🎨 **Modern UI** — Dark, video-first interface driven by CSS design tokens (see `client/src/index.css`), so the whole app can be rethemed from one block
 - 🔐 **Login System** — Local accounts stored in a JSON database on the server
 - 🔐 **Secure** — P2P encryption, no server recording
 

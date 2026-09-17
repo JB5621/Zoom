@@ -4,10 +4,31 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#060718" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <title>client</title>
+    <title>ZoomClone</title>
+    <script>
+      // Resolve the theme before first paint. Without this the page renders
+      // in the default (dark) theme for a frame and then flips, which is
+      // very visible for someone who has chosen light.
+      (function () {
+        try {
+          var stored = localStorage.getItem("zoomclone_theme");
+          var choice = stored === "light" || stored === "dark" ? stored : null;
+          if (choice) document.documentElement.setAttribute("data-theme", choice);
+          var light = choice
+            ? choice === "light"
+            : window.matchMedia("(prefers-color-scheme: light)").matches;
+          var bg = light ? "#e1e2f2" : "#060718";
+          document.documentElement.style.background = bg;
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute("content", bg);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
