@@ -35,7 +35,7 @@ export default function Login() {
   return (
     <div className="home-page" style={S.page}>
       <ThemeToggle />
-      <div style={S.logo}>ZoomClone</div>
+      <div style={S.logo}>Oguz Meeting</div>
       <p style={S.tagline}>Sign in to create or join meetings.</p>
 
       <div className="home-card" style={S.card}>

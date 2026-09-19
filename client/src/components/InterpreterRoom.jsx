@@ -4,13 +4,16 @@
 //   • Their own assignment badge (channel name)
 //   • Mic control only (no camera — they're invisible)
 //   • They can hear and speak but nobody sees their video
+//   • They can pick one window to focus on: every other window goes
+//     silent in this tab only, so the speaker they're translating
+//     isn't competing with the rest of the room
 // ============================================================
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useWebRTC } from "../hooks/useWebRTC";
 import { useAuth } from "../context/AuthContext";
 import VideoPlayer from "./VideoPlayer";
-import { Mic, MicOff, PhoneOff, Users, Headphones, AlertTriangle } from "./icons";
+import { Mic, MicOff, PhoneOff, Users, Headphones, AlertTriangle, Volume2, VolumeX } from "./icons";
 import ThemeToggle from "./ThemeToggle";
 
 export default function InterpreterRoom() {
@@ -30,6 +33,21 @@ export default function InterpreterRoom() {
   } = useWebRTC("INTERPRETER", userName, token);
 
   const peerList = useMemo(() => Object.entries(peers), [peers]);
+
+  // The one window the interpreter is translating right now. Null means
+  // "hear everyone". This never leaves the tab: it only decides which
+  // tiles play audio here, so it can't mute anyone for the room.
+  const [selectedPeerId, setSelectedPeerId] = useState(null);
+
+  // Derived, not stored: if the chosen peer leaves, the focus lapses on
+  // its own. Storing it would leave the whole grid silenced for someone
+  // who is no longer on screen.
+  const focusedPeerId = selectedPeerId && peers[selectedPeerId] ? selectedPeerId : null;
+  const focusedPeer = focusedPeerId ? peers[focusedPeerId] : null;
+
+  const toggleFocus = useCallback((socketId) => {
+    setSelectedPeerId(cur => (cur === socketId ? null : socketId));
+  }, []);
 
   function handleLeave() { leaveRoom(); navigate("/"); }
 
@@ -54,7 +72,7 @@ export default function InterpreterRoom() {
         padding:"14px 24px",borderBottom:"1px solid var(--border)",background:"var(--surface-1)",flexShrink:0,flexWrap:"wrap",gap:"12px" }}>
         <div style={{ display:"flex",alignItems:"center",gap:"12px" }}>
           <span style={{ fontWeight:800,fontSize:"1.2rem",color:"var(--text-1)" }}>
-            ZoomClone
+            Oguz Meeting
           </span>
           <ThemeToggle inline />
         </div>
@@ -83,6 +101,37 @@ export default function InterpreterRoom() {
         )}
       </div>
 
+      {/* Which window the interpreter is on right now */}
+      {peerList.length > 0 && (
+        <div style={{ display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap",
+          padding:"10px 24px",borderBottom:"1px solid var(--border)",
+          background: focusedPeer ? "var(--success-soft)" : "var(--surface-2)",flexShrink:0 }}>
+          <span style={{ display:"flex",color: focusedPeer ? "var(--success-text)" : "var(--text-3)" }}>
+            {focusedPeer ? <Volume2 size={16} /> : <Headphones size={16} />}
+          </span>
+          <span style={{ fontSize:"0.82rem",color:"var(--text-2)" }}>
+            {focusedPeer ? (
+              <>Translating <strong style={{ color:"var(--success-text)" }}>
+                {focusedPeer.userName || "Participant"}</strong> — every other window is silenced for you
+              </>
+            ) : (
+              <>Hearing everyone — click a window to translate just that person</>
+            )}
+          </span>
+          {focusedPeer && (
+            <button onClick={() => setSelectedPeerId(null)} style={{
+              marginLeft:"auto",display:"flex",alignItems:"center",gap:"6px",
+              padding:"6px 14px",background:"var(--surface-1)",
+              border:"1px solid var(--border-strong)",borderRadius:"8px",
+              color:"var(--text-1)",fontSize:"0.78rem",fontWeight:600,
+              cursor:"pointer",fontFamily:"inherit",
+            }}>
+              <Headphones size={14} /> Hear everyone
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Conference grid (read-only view) */}
       <div style={{ flex:1,padding:"20px 20px 100px",overflow:"auto" }}>
         {peerList.length === 0 ? (
@@ -93,12 +142,64 @@ export default function InterpreterRoom() {
           </div>
         ) : (
           <div style={{ display:"grid",gridTemplateColumns:`repeat(${cols},1fr)`,gap:"12px" }}>
-            {peerList.map(([socketId, peer]) => (
-              <VideoPlayer key={socketId} peerId={socketId}
-                stream={peer.stream} label={peer.userName || "Participant"}
-                isMuted={peer.isMuted} isVideoOff={peer.isVideoOff}
-                isLocal={false} style={{ minHeight:"180px",aspectRatio:"16/9" }} />
-            ))}
+            {peerList.map(([socketId, peer]) => {
+              const isFocused = focusedPeerId === socketId;
+              const isSilenced = !!focusedPeerId && !isFocused;
+              const name = peer.userName || "Participant";
+
+              return (
+                <div
+                  key={socketId}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isFocused}
+                  aria-label={isFocused
+                    ? `Stop focusing on ${name} and hear everyone`
+                    : `Focus audio on ${name} and silence the other windows`}
+                  onClick={() => toggleFocus(socketId)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleFocus(socketId);
+                    }
+                  }}
+                  style={{
+                    position:"relative",borderRadius:"12px",cursor:"pointer",
+                    outline: isFocused ? "3px solid var(--success)" : "none",
+                    outlineOffset:"2px",
+                    // A silenced tile still shows video — the interpreter
+                    // needs to see the room — but reads as off-duty.
+                    opacity: isSilenced ? 0.55 : 1,
+                    transition:"opacity 160ms ease, outline-color 160ms ease",
+                  }}
+                >
+                  <VideoPlayer peerId={socketId}
+                    stream={peer.stream} label={name}
+                    isMuted={peer.isMuted} isVideoOff={peer.isVideoOff}
+                    audioMuted={isSilenced}
+                    isLocal={false} style={{ minHeight:"180px",aspectRatio:"16/9" }} />
+
+                  {/* Per-tile audio state, so it's obvious at a glance which
+                      window is the one being translated. */}
+                  <div style={{
+                    position:"absolute",top:"10px",left:"10px",
+                    display:"flex",alignItems:"center",gap:"5px",
+                    background: isFocused ? "var(--success)" : "var(--chip-dark)",
+                    border:`1px solid ${isFocused ? "var(--success)" : "var(--border)"}`,
+                    borderRadius:"6px",padding:"3px 8px",
+                    color: isFocused ? "var(--on-accent)" : "#fff",
+                    fontSize:"0.65rem",fontWeight:700,letterSpacing:"0.05em",
+                    pointerEvents:"none",
+                  }}>
+                    {isFocused
+                      ? <><Volume2 size={12} /><span>TRANSLATING</span></>
+                      : isSilenced
+                        ? <><VolumeX size={12} /><span>SILENCED</span></>
+                        : <span>CLICK TO FOCUS</span>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -115,7 +216,7 @@ export default function InterpreterRoom() {
           borderRadius:"10px",padding:"8px 14px" }}>
           <div style={{ color:"var(--text-2)",fontSize:"0.68rem",fontWeight:500 }}>MODE</div>
           <div style={{ color:"var(--success-text)",fontSize:"0.82rem",fontWeight:700 }}>
-            Interpreter
+            {focusedPeer ? "Focused" : "Interpreter"}
           </div>
         </div>
 

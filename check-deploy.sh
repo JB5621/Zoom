@@ -1,7 +1,7 @@
 #!/bin/bash
 # Production readiness check script
 
-echo "🔍 ZoomClone Production Readiness Checklist"
+echo "🔍 Oguz Meeting Production Readiness Checklist"
 echo "==========================================="
 echo ""
 

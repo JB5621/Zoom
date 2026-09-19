@@ -142,6 +142,13 @@ export const Volume2 = (p) => (
   </Icon>
 );
 
+export const VolumeX = (p) => (
+  <Icon {...p}>
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+    <path d="M23 9l-6 6M17 9l6 6" />
+  </Icon>
+);
+
 export const Headphones = (p) => (
   <Icon {...p}>
     <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
@@ -179,4 +186,39 @@ export const Check = (p) => (
 
 export const ChevronRight = (p) => (
   <Icon {...p}><polyline points="9 18 15 12 9 6" /></Icon>
+);
+
+export const QrCode = (p) => (
+  <Icon {...p}>
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <path d="M14 14h3v3h-3z" />
+    <path d="M20 14v.01M14 20v.01M20 20v.01" />
+  </Icon>
+);
+
+export const Link2 = (p) => (
+  <Icon {...p}>
+    <path d="M9 17H7a5 5 0 0 1 0-10h2" />
+    <path d="M15 7h2a5 5 0 0 1 0 10h-2" />
+    <line x1="8" y1="12" x2="16" y2="12" />
+  </Icon>
+);
+
+export const Hash = (p) => (
+  <Icon {...p}>
+    <line x1="4" y1="9" x2="20" y2="9" />
+    <line x1="4" y1="15" x2="20" y2="15" />
+    <line x1="10" y1="3" x2="8" y2="21" />
+    <line x1="16" y1="3" x2="14" y2="21" />
+  </Icon>
+);
+
+export const ImageIcon = (p) => (
+  <Icon {...p}>
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <path d="M21 15l-5-5L5 21" />
+  </Icon>
 );

@@ -209,7 +209,7 @@ export function useRecorder() {
         ctx.font = "bold 15px Inter, sans-serif";
         ctx.textAlign = "right";
         ctx.textBaseline = "bottom";
-        ctx.fillText("ZoomClone", CANVAS_W - 16, CANVAS_H - 12);
+        ctx.fillText("Oguz Meeting", CANVAS_W - 16, CANVAS_H - 12);
       }
       rafRef.current = requestAnimationFrame(frame);
     }
@@ -309,7 +309,7 @@ export function useRecorder() {
         ].join("-");
         const a = document.createElement("a");
         a.href = url;
-        a.download = `ZoomClone_recording_${stamp}.${ext}`;
+        a.download = `Oguz_Meeting_recording_${stamp}.${ext}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

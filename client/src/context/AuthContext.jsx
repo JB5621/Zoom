@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-const TOKEN_KEY = "zoomclone_auth_token";
+const TOKEN_KEY = "oguzmeeting_auth_token";
+const LEGACY_TOKEN_KEY = "zoomclone_auth_token";
 const AuthContext = createContext(null);
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "").replace(/\/$/, "");
@@ -12,19 +13,35 @@ function apiUrl(path) {
 async function parseResponse(response) {
   const text = await response.text();
   let data = {};
+  const contentType = response.headers.get("content-type") || "";
+
   if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
+    if (contentType.includes("application/json")) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = {};
+      }
+    } else if (!text.trim().startsWith("<")) {
       data = { error: text };
     }
   }
 
   if (!response.ok) {
-    throw new Error(data.error || "Authentication failed.");
+    throw new Error(data.error || authStatusMessage(response.status));
   }
 
   return data;
+}
+
+function authStatusMessage(status) {
+  if (status === 0) return "Could not reach the auth server.";
+  if (status === 400) return "Check the form and try again.";
+  if (status === 401) return "Invalid email or password.";
+  if (status === 409) return "An account with that email already exists.";
+  if (status === 429) return "Too many attempts. Please wait a bit and try again.";
+  if (status >= 500) return "The auth server had a problem. Check that the backend is running.";
+  return `Authentication failed (${status}).`;
 }
 
 async function postJson(path, body, token) {
@@ -54,7 +71,7 @@ async function postJson(path, body, token) {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || "");
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY) || "");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -75,6 +92,7 @@ export function AuthProvider({ children }) {
         if (!cancelled) setUser(data.user);
       } catch {
         localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(LEGACY_TOKEN_KEY);
         if (!cancelled) {
           setToken("");
           setUser(null);
@@ -95,6 +113,7 @@ export function AuthProvider({ children }) {
     try {
       const data = await postJson(path, payload);
       localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
       setToken(data.token);
       setUser(data.user);
       return data.user;
@@ -120,6 +139,7 @@ export function AuthProvider({ children }) {
       }
     } finally {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
       setToken("");
       setUser(null);
       setSubmitting(false);

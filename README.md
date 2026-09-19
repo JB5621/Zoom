@@ -1,6 +1,6 @@
-# 🎥 ZoomClone — WebRTC Video Conferencing App
+# 🎥 Oguz Meeting — WebRTC Video Conferencing App
 
-A fully functional Zoom-like video conferencing app built with:
+A fully functional video conferencing app built with:
 - **React 19** (frontend with modern UI)
 - **Node.js + Express** (backend signaling server)
 - **Socket.io** (real-time WebRTC signaling)
@@ -23,7 +23,7 @@ A fully functional Zoom-like video conferencing app built with:
 ## 📁 Project Structure
 
 ```
-zoom-clone/
+oguz-meeting/
 ├── server/
 │   ├── package.json
 │   ├── server.js          ← Signaling server (Socket.io + Express)

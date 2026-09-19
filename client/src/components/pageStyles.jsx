@@ -154,6 +154,37 @@ const S = {
     minHeight: "44px",
     minWidth: "44px",
   },
+  joinMethods: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "4px",
+    marginBottom: "16px",
+    background: "var(--bg)",
+    padding: "4px",
+    borderRadius: "8px",
+  },
+  joinMethod: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "6px",
+    border: "none",
+    borderRadius: "6px",
+    padding: "10px 6px",
+    minHeight: "44px",
+    background: "transparent",
+    color: "var(--text-2)",
+    fontWeight: 600,
+    fontSize: "0.82rem",
+    fontFamily: "inherit",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  joinMethodActive: {
+    background: "var(--surface-2)",
+    color: "var(--text-1)",
+    boxShadow: "var(--shadow-sm)",
+  },
   label: {
     color: "var(--text-2)",
     fontSize: "0.75rem",
@@ -224,7 +255,7 @@ export function blurInput(e) {
 export function LoadingScreen({ label = "Loading your session..." }) {
   return (
     <div style={S.page}>
-      <div style={S.logo}>ZoomClone</div>
+      <div style={S.logo}>Oguz Meeting</div>
       <p style={S.tagline}>{label}</p>
     </div>
   );

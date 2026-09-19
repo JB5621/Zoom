@@ -9,14 +9,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <title>ZoomClone</title>
+    <title>Oguz Meeting</title>
     <script>
       // Resolve the theme before first paint. Without this the page renders
       // in the default (dark) theme for a frame and then flips, which is
       // very visible for someone who has chosen light.
       (function () {
         try {
-          var stored = localStorage.getItem("zoomclone_theme");
+          var stored = localStorage.getItem("oguzmeeting_theme") || localStorage.getItem("zoomclone_theme");
           var choice = stored === "light" || stored === "dark" ? stored : null;
           if (choice) document.documentElement.setAttribute("data-theme", choice);
           var light = choice

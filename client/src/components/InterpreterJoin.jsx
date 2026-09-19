@@ -51,7 +51,7 @@ export default function InterpreterJoin() {
     <div style={S.page}>
       <ThemeToggle />
       <div style={{ ...S.card, textAlign: "center" }}>
-        <div style={S.logo}>ZoomClone</div>
+        <div style={S.logo}>Oguz Meeting</div>
         <div style={{ fontSize: "2.5rem", marginBottom: "16px" }}>✕</div>
         <p style={{ color: "var(--text-1)", marginBottom: "8px", fontWeight: 600 }}>Invalid Invite Link</p>
         <p style={{ color: "var(--text-2)", fontSize: "0.85rem" }}>{error}</p>
@@ -62,7 +62,7 @@ export default function InterpreterJoin() {
   return (
     <div style={S.page}>
       <div style={{ ...S.card, textAlign: "center" }}>
-        <div style={S.logo}>ZoomClone</div>
+        <div style={S.logo}>Oguz Meeting</div>
         <h2 style={{ fontWeight: 700, color: "var(--text-1)", marginBottom: "8px", fontSize: "1.1rem" }}>
           Interpreter Invite
         </h2>

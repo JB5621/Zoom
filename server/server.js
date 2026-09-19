@@ -11,6 +11,7 @@ const rateLimit    = require("express-rate-limit");
 const compression  = require("compression");
 const { v4: uuidv4 } = require("uuid");
 const path         = require("path");
+const sfu          = require("./sfu");
 
 const app = express();
 app.use(compression());
@@ -25,20 +26,94 @@ app.use(cors(corsOptions));
 
 app.use(express.json());
 
-// Rate limiting — brute-force / spam protection
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,  // 15 minutes
-  max: 20,
+// Behind the dev server, /api is proxied, so every request reaches Express
+// from 127.0.0.1 and req.ip is the proxy rather than the caller. Without
+// this the whole LAN shares a single rate-limit bucket. "loopback" trusts
+// X-Forwarded-For only when the immediate peer is local — a LAN client
+// cannot forge it, because its own peer address is not loopback.
+app.set("trust proxy", "loopback");
+
+// ── Rate limiting ─────────────────────────────────────────────
+//
+// These exist to slow password guessing and signup spam, not to slow
+// people down. Two details decide which of those you actually get:
+//
+//  - Only *failed* attempts count. Counting successful sign-ins meant an
+//    ordinary day of use exhausted the budget and locked people out, and
+//    a successful login is evidence of the opposite of an attack.
+//  - The login key includes the account. Keyed on address alone, one
+//    person mistyping their password spends everyone else's budget too —
+//    and with the proxy above unfixed, "everyone else" was the whole LAN.
+
+/** Client address, or the proxy's if it did not forward one. */
+const addressOf = (req) => req.ip || req.socket?.remoteAddress || "unknown";
+
+/** Reply with how long the caller actually has to wait. */
+function limitReached(req, res, next, options) {
+  const remainingMs = req.rateLimit?.resetTime
+    ? req.rateLimit.resetTime - Date.now()
+    : options.windowMs;
+  const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+  res.status(options.statusCode).json({
+    error: `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+  });
+}
+
+// Guessing one account's password.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many requests, please try again later." },
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => {
+    const email = typeof req.body?.email === "string" ? normalizeEmail(req.body.email) : "";
+    return `${addressOf(req)}|${email}`;
+  },
+  handler: limitReached,
+});
+
+// Working through many accounts from one machine. Set high enough that a
+// person never meets it, low enough to stop a script enumerating users.
+const loginSweepLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: addressOf,
+  handler: limitReached,
+});
+
+// Signup spam. Registering is rare, so this stays per address.
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: addressOf,
+  handler: limitReached,
 });
 const roomLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,  // 1 hour
-  max: 50,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: addressOf,
   message: { error: "Room creation limit reached, please try again later." },
+});
+
+// Joining a protected room is a different act from creating one, and a
+// roomful of people arriving at once must not look like abuse. Only wrong
+// passwords count, so a full room costs nothing.
+const roomPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `${addressOf(req)}|${String(req.params?.roomId || "").toUpperCase()}`,
+  handler: limitReached,
 });
 
 // ── JSON auth store ─────────────────────────────────────────
@@ -201,7 +276,7 @@ const rooms = new Map();
 const interpreterTokens = new Map();
 
 // ── REST: Auth ───────────────────────────────────────────────
-app.post("/api/auth/register", authLimiter, (req, res) => {
+app.post("/api/auth/register", registerLimiter, (req, res) => {
   const name = String(req.body?.name || "").trim();
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || "");
@@ -232,7 +307,7 @@ app.post("/api/auth/register", authLimiter, (req, res) => {
   res.status(201).json({ token, user: sanitizeUser(user) });
 });
 
-app.post("/api/auth/login", authLimiter, (req, res) => {
+app.post("/api/auth/login", loginSweepLimiter, loginLimiter, (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || "");
   console.log(`[AUTH] Login attempt: ${email}`);
@@ -288,6 +363,45 @@ function broadcastInterpretation(roomId) {
     channels: safeChannels,
     adminId: room.adminId,
   });
+}
+
+/**
+ * Close a room for everybody in it.
+ *
+ * This is the one exit that does not promote a replacement admin: the
+ * meeting is over rather than being handed on. The room is dropped from
+ * the map before the sockets are removed so that an event still in
+ * flight cannot recreate it, and so the code stops resolving straight
+ * away — `getRoom` returning undefined is what makes every other
+ * handler a no-op for this room from here on.
+ */
+function endRoom(room) {
+  const roomId = room.id;
+  io.to(roomId).emit("room-ended", { reason: "host-ended" });
+  rooms.delete(roomId);
+
+  for (const socketId of [...room.participants.keys(), ...room.interpreters.keys()]) {
+    const s = io.sockets.sockets.get(socketId);
+    if (!s) continue;
+    // Clearing socket.data means the disconnect handler skips its room
+    // bookkeeping, which would otherwise announce departures from a room
+    // that no longer exists and re-arm the empty-room cleanup timer.
+    s.data = {};
+    s.leave(roomId);
+  }
+  for (const socketId of [...room.participants.keys(), ...room.interpreters.keys()]) {
+    sfu.cleanupPeer(socketId);
+  }
+  sfu.closeRoomRouter(room);
+
+  room.participants.clear();
+  room.interpreters.clear();
+
+  // Interpreter invite links are scoped to the room, so they die with it.
+  for (const [token, entry] of interpreterTokens) {
+    if (entry.roomId === roomId) interpreterTokens.delete(token);
+  }
+  console.log(`[ROOM] ${roomId} ended by host`);
 }
 
 // ── REST: Create room ─────────────────────────────────────────
@@ -362,7 +476,7 @@ app.get("/api/rooms/:roomId", (req, res) => {
 
 // Exchange the room password for a short-lived pass that the socket join
 // presents. Rate limited because it is a guessable secret.
-app.post("/api/rooms/:roomId/verify", roomLimiter, (req, res) => {
+app.post("/api/rooms/:roomId/verify", roomPasswordLimiter, (req, res) => {
   const room = getRoom(req.params.roomId);
   if (!room) return res.status(404).json({ error: "Room not found" });
   if (!roomPasswordOk(room, req.body?.password)) {
@@ -431,6 +545,22 @@ io.on("connection", (socket) => {
     const others = [...room.participants.values()].filter(p => p.socketId !== socket.id);
     socket.emit("room-users", others);
     socket.to(id).emit("user-joined", user);
+
+    // Interpreters are deliberately left out of `room-users` so they never
+    // appear as tiles, but that also meant a newcomer never learned they
+    // existed. The interpreter only hears about newcomers via
+    // `user-joined`, where it takes the answering side — so neither end
+    // ever sent an offer and anyone joining after the interpreter simply
+    // never connected to them. Name them here and let the newcomer offer.
+    const activeInterpreters = [...room.interpreters.values()].map(i => ({
+      socketId: i.socketId,
+      userName: i.userName,
+      channelId: i.channelId,
+      channelName: i.channelName,
+    }));
+    if (activeInterpreters.length) {
+      socket.emit("existing-interpreters", activeInterpreters);
+    }
 
     // Send current interpretation state
     broadcastInterpretation(id);
@@ -502,13 +632,11 @@ io.on("connection", (socket) => {
     console.log(`[INTERP] ${interpreterName} joined channel "${channel.name}" in ${entry.roomId}`);
   });
 
-  // ── WebRTC signaling ───────────────────────────────────────
-  socket.on("offer", ({ targetId, offer }) =>
-    io.to(targetId).emit("offer", { from: socket.id, offer }));
-  socket.on("answer", ({ targetId, answer }) =>
-    io.to(targetId).emit("answer", { from: socket.id, answer }));
-  socket.on("ice-candidate", ({ targetId, candidate }) =>
-    io.to(targetId).emit("ice-candidate", { from: socket.id, candidate }));
+  // ── WebRTC signalling (SFU) ────────────────────────────────
+  // Media no longer goes client-to-client, so there are no offers to
+  // relay between peers: each client negotiates once with the server and
+  // the server forwards. sfu.js owns that exchange.
+  sfu.registerSfuHandlers(io, socket, { getRoom });
 
   // ── Media state ────────────────────────────────────────────
   socket.on("toggle-mute", ({ isMuted }) => {
@@ -605,9 +733,25 @@ io.on("connection", (socket) => {
     broadcastInterpretation(room.id);
   });
 
+  // ── END MEETING (admin only) ───────────────────────────────
+  socket.on("end-room", () => {
+    const { roomId } = socket.data || {};
+    const room = getRoom(roomId);
+    // Silently ignored for non-admins, matching the other admin actions:
+    // a client that should not have sent this gets no signal either way.
+    if (!room || room.adminId !== socket.id) return;
+    endRoom(room);
+  });
+
   // ── Disconnect ─────────────────────────────────────────────
   socket.on("disconnect", () => {
     const { roomId, role } = socket.data || {};
+
+    // Media first, and before the early return: a socket that never
+    // finished joining can still have built transports, and those hold
+    // real ports on a worker until something closes them.
+    sfu.releasePeer(socket.id, roomId ? getRoom(roomId) : null);
+
     if (!roomId) return;
 
     const room = getRoom(roomId);
@@ -635,6 +779,7 @@ io.on("connection", (socket) => {
           }
         }
         io.to(roomId).emit("user-left", { socketId: socket.id });
+        if (room.presenterId === socket.id) room.presenterId = null;
       }
 
       if (room.participants.size === 0 && room.interpreters.size === 0) {
@@ -659,6 +804,7 @@ app.get("*", (req, res) => {
 });
 
 const PORT = Number(process.env.PORT || 5000);
+const serverIsHttps = server instanceof https.Server;
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
@@ -669,10 +815,22 @@ server.on("error", (err) => {
   throw err;
 });
 
-server.listen(PORT, () => {
-  const scheme = (process.env.HTTPS === "true" || (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH)) ? "https" : "http";
-  console.log(`\n🚀 Server on ${scheme}://localhost:${PORT}\n`);
-  console.log(`[DATA] users: ${usersDbPath}`);
-  console.log(`[DATA] sessions: ${sessionsDbPath}`);
-  console.log(`[DATA] usersCount=${Array.isArray(users)?users.length:0} sessionsCount=${Object.keys(sessions||{}).length}`);
-});
+// The mediasoup workers are separate processes and take a moment to come
+// up. Listening first would mean the first person to join races them and
+// gets a room with no router, so the socket only opens once media can
+// actually be carried.
+sfu.initWorkers()
+  .then(() => {
+    server.listen(PORT, () => {
+      const scheme = serverIsHttps ? "https" : "http";
+      console.log(`\n🚀 Server on ${scheme}://localhost:${PORT}\n`);
+      console.log(`[DATA] users: ${usersDbPath}`);
+      console.log(`[DATA] sessions: ${sessionsDbPath}`);
+      console.log(`[DATA] usersCount=${Array.isArray(users)?users.length:0} sessionsCount=${Object.keys(sessions||{}).length}`);
+      console.log(`[SFU] media on ${sfu.ANNOUNCED_ADDRESS}:${sfu.MIN_PORT}-${sfu.MAX_PORT} (UDP+TCP)`);
+    });
+  })
+  .catch((err) => {
+    console.error("[SFU] could not start workers:", err.message);
+    process.exit(1);
+  });

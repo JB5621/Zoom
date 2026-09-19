@@ -2,7 +2,7 @@
 REM Production readiness check script for Windows
 
 echo.
-echo 🔍 ZoomClone Production Readiness Checklist
+echo 🔍 Oguz Meeting Production Readiness Checklist
 echo ===========================================
 echo.
 

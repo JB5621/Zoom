@@ -6,10 +6,14 @@
 
 PORT=${PORT:-5000}
 NODE_ENV=production
+HTTPS=${HTTPS:-true}
+SSL_KEY_PATH=${SSL_KEY_PATH:-certs/localhost-key.pem}
+SSL_CERT_PATH=${SSL_CERT_PATH:-certs/localhost.pem}
 
-echo "🚀 Starting ZoomClone production server..."
+echo "🚀 Starting Oguz Meeting production server..."
 echo "   Port: $PORT"
 echo "   Environment: $NODE_ENV"
+echo "   HTTPS: $HTTPS"
 echo ""
 
 cd "$(dirname "$0")/server" || exit 1
@@ -21,4 +25,4 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Start server
-PORT=$PORT NODE_ENV=$NODE_ENV node server.js
+PORT=$PORT NODE_ENV=$NODE_ENV HTTPS=$HTTPS SSL_KEY_PATH=$SSL_KEY_PATH SSL_CERT_PATH=$SSL_CERT_PATH node server.js

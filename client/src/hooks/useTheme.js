@@ -7,13 +7,14 @@
 // ============================================================
 import { useCallback, useEffect, useState } from "react";
 
-const KEY = "zoomclone_theme";
+const KEY = "oguzmeeting_theme";
+const LEGACY_KEY = "zoomclone_theme";
 const THEME_COLOR = { light: "#e1e2f2", dark: "#060718" };
 
 function readStored() {
   // Private mode and blocked site-data both make this throw.
   try {
-    const v = localStorage.getItem(KEY);
+    const v = localStorage.getItem(KEY) || localStorage.getItem(LEGACY_KEY);
     return v === "light" || v === "dark" ? v : "system";
   } catch {
     return "system";
@@ -68,6 +69,7 @@ export function useTheme() {
     try {
       if (choice === "system") localStorage.removeItem(KEY);
       else localStorage.setItem(KEY, choice);
+      localStorage.removeItem(LEGACY_KEY);
     } catch {
       // Not being able to remember the choice is not worth breaking over.
     }

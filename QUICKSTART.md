@@ -1,6 +1,6 @@
 # ⚡ Quick Start Deployment Guide
 
-Get ZoomClone running in production in under 5 minutes.
+Get Oguz Meeting running in production in under 5 minutes.
 
 ## Option 1: Local Server (Simple)
 
@@ -35,10 +35,10 @@ start-prod.bat
 
 ```bash
 # Build image
-docker build -t zoomclone .
+docker build -t oguz-meeting .
 
 # Run container
-docker run -p 5000:5000 zoomclone
+docker run -p 5000:5000 oguz-meeting
 ```
 
 Visit: **https://localhost:5000**

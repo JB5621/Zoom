@@ -1,4 +1,4 @@
-# 🚀 ZoomClone - Production Ready!
+# 🚀 Oguz Meeting - Production Ready!
 
 **Last Updated**: May 17, 2026
 **Status**: ✅ Ready for Deployment
@@ -52,7 +52,7 @@ Visit: **https://localhost:5000**
 ## Directory Structure
 
 ```
-zoom-clone/
+oguz-meeting/
 ├── 🆕 QUICKSTART.md              ⚡ 5-minute deployment guide
 ├── 🆕 DEPLOYMENT.md              📖 Complete guide for all platforms
 ├── 🆕 DEPLOYMENT_CHECKLIST.md    ✅ Pre-deployment verification
@@ -148,15 +148,15 @@ git push heroku main
 ```bash
 ssh ubuntu@your-instance.com
 git clone your-repo.git
-cd zoom-clone
+cd oguz-meeting
 ./build.sh
 ./start-prod.sh
 ```
 
 ### Docker
 ```bash
-docker build -t zoomclone .
-docker run -p 5000:5000 zoomclone
+docker build -t oguz-meeting .
+docker run -p 5000:5000 oguz-meeting
 ```
 
 ### Render

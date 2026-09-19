@@ -9,6 +9,8 @@
 // bytes, which is far more than any room URL needs.
 // ============================================================
 
+import { rsEncode } from "./gf256";
+
 const EC_LEVEL_M_BITS = 0b00;
 
 // Per version: [totalCodewords, ecCodewordsPerBlock, [ [blocks, dataCw], ... ] ]
@@ -29,49 +31,6 @@ const ALIGNMENT = {
   1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30],
   6: [6, 34], 7: [6, 22, 38], 8: [6, 24, 42], 9: [6, 26, 46], 10: [6, 28, 50],
 };
-
-// ── GF(256) arithmetic for Reed-Solomon, primitive polynomial 0x11D ──
-const EXP = new Uint8Array(512);
-const LOG = new Uint8Array(256);
-(function initGF() {
-  let x = 1;
-  for (let i = 0; i < 255; i++) {
-    EXP[i] = x;
-    LOG[x] = i;
-    x <<= 1;
-    if (x & 0x100) x ^= 0x11d;
-  }
-  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
-})();
-
-const gfMul = (a, b) => (a === 0 || b === 0 ? 0 : EXP[LOG[a] + LOG[b]]);
-
-function rsGenerator(degree) {
-  let poly = [1];
-  for (let i = 0; i < degree; i++) {
-    const next = new Array(poly.length + 1).fill(0);
-    for (let j = 0; j < poly.length; j++) {
-      next[j] ^= gfMul(poly[j], 1);
-      next[j + 1] ^= gfMul(poly[j], EXP[i]);
-    }
-    poly = next;
-  }
-  return poly;
-}
-
-function rsEncode(data, ecLen) {
-  const gen = rsGenerator(ecLen);
-  const res = new Array(ecLen).fill(0);
-  for (const byte of data) {
-    const factor = byte ^ res[0];
-    res.shift();
-    res.push(0);
-    if (factor !== 0) {
-      for (let i = 0; i < ecLen; i++) res[i] ^= gfMul(gen[i + 1], factor);
-    }
-  }
-  return res;
-}
 
 // ── Bit stream ──────────────────────────────────────────────
 class Bits {
@@ -242,7 +201,7 @@ function placeData(m, reserved, size, codewords) {
   }
 }
 
-const MASKS = [
+export const MASKS = [
   (r, c) => (r + c) % 2 === 0,
   (r) => r % 2 === 0,
   (r, c) => c % 3 === 0,
@@ -264,15 +223,24 @@ function applyFormat(m, size, maskIndex) {
   const bits = formatBits(maskIndex);
   for (let i = 0; i < 15; i++) {
     const bit = (bits >> i) & 1;
-    // Copy 1 — around the top-left finder.
-    if (i < 6) m[8][i] = bit;
-    else if (i === 6) m[8][7] = bit;
+
+    // Copy 1 — down column 8 past the top-left finder, then left to right
+    // along row 8. Bit 6 steps over the timing pattern at row 6 and bit 8
+    // steps over the one at column 6, which is why neither run is
+    // contiguous. Both copies are indexed from bit 0, the low bit of the
+    // codeword.
+    if (i < 6) m[i][8] = bit;
+    else if (i === 6) m[7][8] = bit;
     else if (i === 7) m[8][8] = bit;
-    else if (i === 8) m[7][8] = bit;
-    else m[14 - i][8] = bit;
-    // Copy 2 — split between the other two finders.
-    if (i < 8) m[size - 1 - i][8] = bit;
-    else m[8][size - 15 + i] = bit;
+    else if (i === 8) m[8][7] = bit;
+    else m[8][14 - i] = bit;
+
+    // Copy 2 — the low eight bits run leftward along row 8 beneath the
+    // top-right finder; the high seven run upward along column 8 beside
+    // the bottom-left one. That run stops at row size - 7, one short of
+    // the dark module at (size - 8, 8), which is not part of it.
+    if (i < 8) m[8][size - 1 - i] = bit;
+    else m[size - 15 + i][8] = bit;
   }
   m[size - 8][8] = 1; // dark module
 }
@@ -354,4 +322,17 @@ export function qrToSvgPath(modules, size, quiet = 4) {
     }
   }
   return { path: d, extent: size + quiet * 2 };
+}
+
+/**
+ * Which modules of a version's matrix belong to the finder, timing,
+ * alignment, format and version patterns — i.e. everything that is not
+ * data and must not be unmasked. The decoder needs exactly the same map
+ * the encoder used, so it comes from the same construction rather than a
+ * second description of the spec.
+ *
+ * @returns {boolean[][]} indexed [row][col]
+ */
+export function reservedModules(version) {
+  return buildMatrix(version).reserved;
 }

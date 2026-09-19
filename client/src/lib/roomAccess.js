@@ -7,7 +7,8 @@
 // ============================================================
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "").replace(/\/$/, "");
-const key = (roomId) => `zoomclone_pass_${String(roomId).toUpperCase()}`;
+const key = (roomId) => `oguzmeeting_pass_${String(roomId).toUpperCase()}`;
+const legacyKey = (roomId) => `zoomclone_pass_${String(roomId).toUpperCase()}`;
 
 export function apiUrl(path) {
   return API_BASE ? `${API_BASE}${path}` : path;
@@ -15,7 +16,7 @@ export function apiUrl(path) {
 
 export function getRoomPass(roomId) {
   try {
-    return sessionStorage.getItem(key(roomId)) || "";
+    return sessionStorage.getItem(key(roomId)) || sessionStorage.getItem(legacyKey(roomId)) || "";
   } catch {
     return "";
   }
@@ -25,6 +26,7 @@ export function setRoomPass(roomId, pass) {
   try {
     if (pass) sessionStorage.setItem(key(roomId), pass);
     else sessionStorage.removeItem(key(roomId));
+    sessionStorage.removeItem(legacyKey(roomId));
   } catch {
     // A pass we cannot cache just means one extra prompt, not a failure.
   }
@@ -100,4 +102,48 @@ export function roomLink(roomId, host) {
   const h = host || hostname;
   const authority = port ? `${h}:${port}` : h;
   return `${protocol}//${authority}/room/${String(roomId).toUpperCase()}`;
+}
+
+// A room id is a uuid's first eight characters, so hex — but the parser
+// stays permissive about length and case and lets the server be the one
+// to say a code does not exist.
+const ROOM_CODE = /^[0-9A-Z]{4,12}$/;
+const ROOM_PATH = /\/room\/([0-9A-Za-z]{4,12})(?![0-9A-Za-z])/;
+
+/**
+ * Work out which meeting a piece of text refers to. Accepts a bare room
+ * code, a full meeting link, or the payload of a scanned QR — the three
+ * join routes all end up here so they behave identically from then on.
+ *
+ * @returns {{ code: string, url: string|null }|null}
+ *          `url` is set only when the input was a link, and is what to
+ *          open if the meeting turns out to live on another host.
+ */
+export function parseRoomRef(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return null;
+
+  const bare = raw.toUpperCase();
+  if (ROOM_CODE.test(bare)) return { code: bare, url: null };
+
+  const match = raw.match(ROOM_PATH);
+  if (!match) return null;
+
+  let url = null;
+  try {
+    url = new URL(raw, window.location.origin).href;
+  } catch {
+    // A /room/CODE fragment with no parseable origin still gives us the
+    // code, which is the part that matters.
+  }
+  return { code: match[1].toUpperCase(), url };
+}
+
+/** True when `url` is served by the same origin as this page. */
+export function isSameOrigin(url) {
+  try {
+    return new URL(url, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
 }

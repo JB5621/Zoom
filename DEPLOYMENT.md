@@ -107,8 +107,8 @@ CMD ["node", "server.js"]
 
 Build and run:
 ```bash
-docker build -t zoomclone .
-docker run -p 5000:5000 zoomclone
+docker build -t oguz-meeting .
+docker run -p 5000:5000 oguz-meeting
 ```
 
 ## Cloud Deployment
@@ -116,7 +116,7 @@ docker run -p 5000:5000 zoomclone
 ### Heroku
 ```bash
 # Create app
-heroku create zoomclone
+heroku create oguz-meeting
 
 # Deploy
 git push heroku main

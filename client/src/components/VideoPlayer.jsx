@@ -3,7 +3,7 @@
 // ============================================================
 import React, { useRef, useEffect } from "react";
 
-function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, peerId, style, speakerId }) {
+function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, peerId, style, speakerId, audioMuted }) {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -34,7 +34,7 @@ function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, pee
       <video
         ref={videoRef}
         autoPlay playsInline
-        muted={isLocal}
+        muted={isLocal || !!audioMuted}
         data-peer-id={!isLocal && peerId ? peerId : undefined}
         style={{
           width:"100%", height:"100%", objectFit:"cover",

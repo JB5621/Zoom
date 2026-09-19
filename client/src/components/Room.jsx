@@ -12,7 +12,7 @@ import DeviceSelector from "./DeviceSelector";
 import SharePicker from "./SharePicker";
 import RecordingIndicator from "./RecordingIndicator";
 import InterpretationPanel from "./InterpretationPanel";
-import { Monitor, VideoOff } from "./icons";
+import { Monitor, VideoOff, PhoneOff } from "./icons";
 import ThemeToggle from "./ThemeToggle";
 import InvitePanel from "./InvitePanel";
 import RoomPasswordGate from "./RoomPasswordGate";
@@ -51,6 +51,72 @@ function PresentationView({ stream, presenterName, iAmPresenting, onStop }) {
   );
 }
 
+/**
+ * The host's way out. Ending the meeting cannot be undone and takes
+ * everyone else with it, so the two outcomes are named rather than hidden
+ * behind one button, and neither is the default action.
+ */
+function LeavePrompt({ participantCount, onEndForEveryone, onJustLeave, onCancel }) {
+  const others = participantCount === 1 ? "1 other person" : `${participantCount} other people`;
+  const button = {
+    width: "100%", minHeight: "44px", padding: "12px",
+    borderRadius: "8px", cursor: "pointer", fontFamily: "inherit",
+    fontWeight: 600, fontSize: "0.9rem", marginBottom: "10px",
+  };
+
+  return (
+    <div
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+      style={{ position:"fixed",inset:0,background:"var(--scrim)",display:"flex",
+        alignItems:"center",justifyContent:"center",zIndex:600,padding:"clamp(12px, 3vw, 16px)" }}
+    >
+      <div style={{ background:"var(--surface-1)",border:"1px solid var(--border)",
+        borderRadius:"14px",padding:"clamp(20px, 5vw, 26px)",width:"100%",
+        maxWidth:"min(380px, 92vw)",boxShadow:"var(--shadow-modal)" }}>
+        <div style={{ fontWeight:700,fontSize:"clamp(0.95rem, 3vw, 1.1rem)",
+          color:"var(--text-1)",marginBottom:"6px" }}>Leave this meeting?</div>
+        <p style={{ color:"var(--text-2)",fontSize:"0.85rem",lineHeight:1.5,margin:"0 0 18px" }}>
+          You are the host, and {others} {participantCount === 1 ? "is" : "are"} still here.
+        </p>
+
+        <button
+          onClick={onEndForEveryone}
+          style={{ ...button, background:"var(--danger)",border:"1px solid var(--danger)",
+            color:"var(--on-accent)" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--danger-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "var(--danger)"; }}
+        >
+          End for everyone
+        </button>
+        <p style={{ color:"var(--text-3)",fontSize:"0.76rem",lineHeight:1.5,margin:"-4px 0 14px" }}>
+          Removes everyone and closes the room. The code stops working.
+        </p>
+
+        <button
+          onClick={onJustLeave}
+          style={{ ...button, background:"var(--surface-2)",
+            border:"1px solid var(--border-strong)",color:"var(--text-1)" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-3)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-2)"; }}
+        >
+          Just leave
+        </button>
+        <p style={{ color:"var(--text-3)",fontSize:"0.76rem",lineHeight:1.5,margin:"-4px 0 14px" }}>
+          The meeting carries on without you and someone else becomes host.
+        </p>
+
+        <button
+          onClick={onCancel}
+          style={{ ...button, marginBottom:0,background:"transparent",border:"none",
+            color:"var(--text-2)",fontWeight:500 }}
+        >
+          Stay in the meeting
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Stable object references so VideoPlayer's React.memo can actually
 // skip re-rendering tiles whose own props haven't changed. The grid tile
 // style is derived from the measured container, so it is memoised in the
@@ -80,6 +146,9 @@ export default function Room() {
   const [showSharePicker,    setShowSharePicker]    = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [showInvite,         setShowInvite]         = useState(false);
+  // Only the host is asked anything on the way out, and only because one
+  // of the choices cannot be undone.
+  const [showLeavePrompt,    setShowLeavePrompt]    = useState(false);
 
   const {
     localStream, peers, interpreterIds,
@@ -95,9 +164,9 @@ export default function Room() {
     switchCamera, switchMicrophone, switchSpeaker,
     toggleMute, toggleVideo,
     startPresentation, stopPresentation,
-    sendMessage, leaveRoom,
+    sendMessage, leaveRoom, endRoomForAll,
     mySocketId, socketRef,
-    joinError, submitRoomPassword,
+    joinError, submitRoomPassword, roomEnded,
   } = useWebRTC(roomId, userName);
 
   const { isRecording, isPaused, durationLabel, startRecording, pauseRecording, stopRecording } = useRecorder();
@@ -128,9 +197,32 @@ export default function Room() {
   );
 
   function handleLeave() {
+    // A participant leaving affects nobody else, so it needs no
+    // confirmation. The host has a second option that does, so they are
+    // asked which one they meant.
+    if (isAdmin && peerList.length > 0) {
+      setShowLeavePrompt(true);
+      return;
+    }
     if (isRecording) stopRecording();
     leaveRoom();
     navigate("/");
+  }
+
+  function handleJustLeave() {
+    setShowLeavePrompt(false);
+    if (isRecording) stopRecording();
+    leaveRoom();
+    navigate("/");
+  }
+
+  function handleEndForEveryone() {
+    setShowLeavePrompt(false);
+    if (isRecording) stopRecording();
+    // No teardown or navigation here: the server answers with
+    // `room-ended`, which every client including this one acts on, so the
+    // host leaves by the same path as everyone else.
+    endRoomForAll();
   }
 
   function handleToggleRecord() {
@@ -146,6 +238,26 @@ export default function Room() {
       startRecording(participants);
     }
   }
+
+  if (roomEnded) return (
+    <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",
+      justifyContent:"center",background:"var(--bg)",gap:"16px",padding:"24px",textAlign:"center" }}>
+      <PhoneOff size={48} style={{ color:"var(--text-2)" }} />
+      <h2 style={{ color:"var(--text-1)" }}>
+        {isAdmin ? "You ended this meeting" : "The host ended this meeting"}
+      </h2>
+      <p style={{ color:"var(--text-2)",maxWidth:"400px" }}>
+        Room <strong style={{ color:"var(--text-1)",letterSpacing:"0.1em" }}>{roomId}</strong> is
+        closed and its code no longer works. Starting a new meeting gives you a new code.
+      </p>
+      <button onClick={() => navigate("/dashboard")} style={{ marginTop:"8px",padding:"12px 28px",
+        background:"var(--accent)",border:"none",
+        borderRadius:"8px",color:"var(--on-accent)",cursor:"pointer",fontFamily:"inherit",
+        fontSize:"0.95rem",fontWeight:600,minHeight:"44px" }}>
+        Back to dashboard
+      </button>
+    </div>
+  );
 
   if (error) return (
     <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",
@@ -182,7 +294,7 @@ export default function Room() {
         <div style={{ display:"flex",alignItems:"center",gap:"clamp(6px, 2vw, 10px)",minWidth:0 }}>
           <span style={{ fontWeight:800,
             fontSize:"clamp(0.95rem, 3vw, 1.2rem)",
-            color:"var(--text-1)" }}>ZoomClone</span>
+            color:"var(--text-1)" }}>Oguz Meeting</span>
           {isAdmin && (
             <span style={{ background:"var(--warn-soft)",border:"1px solid var(--warn-border)",
               borderRadius:"6px",padding:"clamp(2px, 1vw, 3px) clamp(6px, 1vw, 10px)",color:"var(--warn-text)",
@@ -293,6 +405,15 @@ export default function Room() {
         participantCount={totalParticipants} roomId={roomId}
         onOpenInvite={() => setShowInvite(true)}
       />
+
+      {showLeavePrompt && (
+        <LeavePrompt
+          participantCount={peerList.length}
+          onEndForEveryone={handleEndForEveryone}
+          onJustLeave={handleJustLeave}
+          onCancel={() => setShowLeavePrompt(false)}
+        />
+      )}
 
       {showInvite && (
         <InvitePanel

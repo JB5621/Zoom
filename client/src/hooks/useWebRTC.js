@@ -1,28 +1,51 @@
 // ============================================================
-// useWebRTC.js — all socket events including interpretation
+// useWebRTC.js — media over an SFU, plus all room socket events.
+//
+// This used to build one RTCPeerConnection per participant. That mesh
+// asked each client to encode and upload its camera once per peer, so
+// the fifth person to join cost everyone already in the call another
+// upload — and it made joining order matter, because two clients had to
+// agree which of them would offer.
+//
+// Now there is exactly one connection: to the server. You `produce`
+// your tracks up it once, and `consume` one stream per remote producer
+// back down it. Nothing about the call depends on who joined first, and
+// a client with no camera (an interpreter) simply produces no video
+// rather than having to negotiate its absence.
+//
+// The shape this hook returns is unchanged, so Room, InterpreterRoom
+// and the recorder still see `peers[socketId].stream` as before.
 // ============================================================
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
-import { CAMERA_CONSTRAINTS, tuneSender, tuneAllSenders, setContentHints } from "./mediaTuning";
+import { Device } from "mediasoup-client";
+import {
+  CAMERA_CONSTRAINTS, CAMERA_ENCODINGS, SCREEN_ENCODINGS,
+  AUDIO_CODEC_OPTIONS, CAMERA_CODEC_OPTIONS, setContentHints,
+} from "./mediaTuning";
 import { getRoomPass, verifyRoomPassword } from "../lib/roomAccess";
 
-const ICE = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
-  // Start gathering as soon as the connection object exists rather than
-  // waiting for createOffer, so the first offer already carries candidates.
-  iceCandidatePoolSize: 4,
-  bundlePolicy: "max-bundle",
-  rtcpMuxPolicy: "require",
-};
+/** How long to wait on a server acknowledgement before giving up. */
+const ACK_TIMEOUT_MS = 15_000;
 
 export function useWebRTC(roomId, userName, interpreterToken = null) {
   const socketRef        = useRef(null);
   const localStreamRef   = useRef(null);
   const screenStreamRef  = useRef(null);
-  const peersRef         = useRef({});
+
+  // ── SFU plumbing ─────────────────────────────────────────────
+  const deviceRef        = useRef(null);
+  const sendTransportRef = useRef(null);
+  const recvTransportRef = useRef(null);
+  const producersRef     = useRef({ audio: null, video: null });
+  const consumersRef     = useRef(new Map());   // consumerId -> Consumer
+  // socketId -> Map<producerId, MediaStreamTrack>. One entry per remote
+  // person, rebuilt into a MediaStream whenever their tracks change.
+  const peerTracksRef    = useRef(new Map());
+  // Producers announced before the receive transport existed. Without
+  // this, anyone already speaking when you join is silently skipped.
+  const pendingProducers = useRef([]);
+  const sfuStateRef      = useRef({ starting: false, ready: false });
 
   const [localStream,     setLocalStream]     = useState(null);
   const [peers,           setPeers]           = useState({});
@@ -38,6 +61,9 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
   const [myChannelInfo,   setMyChannelInfo]   = useState(null);
   const [interpreterError,setInterpreterError]= useState(null);
   const [joinError,       setJoinError]       = useState(null);
+  // Set when the host closes the meeting, so the room can say so rather
+  // than just going silent as the peers drop off one by one.
+  const [roomEnded,       setRoomEnded]       = useState(false);
 
   // ── Interpretation state (managed here so socket is ready) ───
   const [channels,    setChannels]    = useState([]);
@@ -68,80 +94,261 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
   const removePeer = useCallback((id) =>
     setPeers(p => { const n={...p}; delete n[id]; return n; }), []);
 
-  const createPeer = useCallback((targetId, isInitiator) => {
-    const pc = new RTCPeerConnection(ICE);
-    
-    // Add all local tracks
-    localStreamRef.current?.getTracks().forEach(track => {
-      pc.addTrack(track, localStreamRef.current);
+  /**
+   * Ask the server something and wait for its acknowledgement.
+   *
+   * The mesh correlated replies by hand through paired events; an ack
+   * ties a response to its request for free. The timeout matters because
+   * mediasoup-client's transport callbacks would otherwise wait forever,
+   * leaving a call that looks like it is still connecting.
+   */
+  const request = useCallback((event, payload = {}) => new Promise((resolve, reject) => {
+    const socket = socketRef.current;
+    if (!socket) return reject(new Error("no socket"));
+
+    const timer = setTimeout(
+      () => reject(new Error(`${event} timed out`)), ACK_TIMEOUT_MS);
+
+    socket.emit(event, payload, (response) => {
+      clearTimeout(timer);
+      if (!response) return reject(new Error(`${event} returned nothing`));
+      if (response.error) return reject(new Error(`${event}: ${response.error}`));
+      resolve(response);
     });
+  }), []);
 
-    // Give the encoder an explicit budget. Without this Chrome settles on a
-    // conservative default and reports qualityLimitationReason "bandwidth".
-    tuneSender(pc, Object.keys(peersRef.current).length + 1, {
-      screenShare: !!screenStreamRef.current,
+  // ── Remote track bookkeeping ─────────────────────────────────
+  // A fresh MediaStream on every change, never a mutated one: the video
+  // elements key their srcObject on stream identity, so reusing the
+  // object means a track arriving later never reaches the element.
+
+  const rebuildPeerStream = useCallback((socketId) => {
+    const tracks = peerTracksRef.current.get(socketId);
+    updatePeer(socketId, {
+      stream: tracks && tracks.size ? new MediaStream([...tracks.values()]) : null,
     });
+  }, [updatePeer]);
 
-    const remoteStream = new MediaStream();
-    
-    pc.ontrack = e => {
-      e.streams[0].getTracks().forEach(t => {
-        if (!remoteStream.getTracks().find(rt => rt.id === t.id)) {
-          remoteStream.addTrack(t);
-        }
-      });
-      updatePeer(targetId, { stream: remoteStream });
-    };
+  const addPeerTrack = useCallback((socketId, producerId, track) => {
+    let tracks = peerTracksRef.current.get(socketId);
+    if (!tracks) { tracks = new Map(); peerTracksRef.current.set(socketId, tracks); }
+    tracks.set(producerId, track);
+    rebuildPeerStream(socketId);
+  }, [rebuildPeerStream]);
 
-    pc.onicecandidate = e => {
-      if (e.candidate) {
-        socketRef.current?.emit("ice-candidate", { targetId, candidate: e.candidate });
+  const dropPeerTrack = useCallback((socketId, producerId) => {
+    const tracks = peerTracksRef.current.get(socketId);
+    if (!tracks) return;
+    tracks.delete(producerId);
+    if (tracks.size === 0) peerTracksRef.current.delete(socketId);
+    rebuildPeerStream(socketId);
+  }, [rebuildPeerStream]);
+
+  const dropPeerMedia = useCallback((socketId) => {
+    peerTracksRef.current.delete(socketId);
+    for (const [id, consumer] of consumersRef.current) {
+      if (consumer.appData?.socketId === socketId) {
+        try { consumer.close(); } catch { /* already gone */ }
+        consumersRef.current.delete(id);
       }
-    };
-
-    pc.onconnectionstatechange = () => {
-      const state = pc.connectionState;
-
-      // "disconnected" is usually a short network blip that ICE recovers
-      // from on its own. Closing here (as this used to) threw away a
-      // working connection and forced a full re-negotiation, which is
-      // seconds of black video for something that often self-heals.
-      if (state === "failed") {
-        if (typeof pc.restartIce === "function" && !pc.__restarted) {
-          pc.__restarted = true;
-          console.warn(`[connectionstatechange] restarting ICE to ${targetId}`);
-          pc.restartIce();
-          return;
-        }
-        console.warn(`[connectionstatechange] Closing connection to ${targetId}`);
-        pc.close();
-        delete peersRef.current[targetId];
-        removePeer(targetId);
-      } else if (state === "closed") {
-        delete peersRef.current[targetId];
-        removePeer(targetId);
-      } else if (state === "connected") {
-        pc.__restarted = false;
-      }
-    };
-
-    peersRef.current[targetId] = pc;
-
-    if (isInitiator) {
-      pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
-        .then(offer => {
-          return pc.setLocalDescription(offer);
-        })
-        .then(() => {
-          socketRef.current?.emit("offer", { targetId, offer: pc.localDescription });
-        })
-        .catch(err => {
-          console.error(`[createPeer] Error in offer creation for ${targetId}:`, err);
-          setError(`Failed to create offer: ${err.message}`);
-        });
     }
-    return pc;
-  }, [updatePeer, removePeer]);
+  }, []);
+
+  /** Subscribe to one remote producer and attach its track to that peer. */
+  const consumeProducer = useCallback(async ({ producerId, socketId }) => {
+    const device = deviceRef.current;
+    const transport = recvTransportRef.current;
+
+    // Announced before we were ready — remember it and drain later.
+    if (!device || !transport) {
+      pendingProducers.current.push({ producerId, socketId });
+      return;
+    }
+
+    try {
+      const params = await request("sfu-consume", {
+        transportId: transport.id,
+        producerId,
+        rtpCapabilities: device.rtpCapabilities,
+      });
+
+      const consumer = await transport.consume({
+        id: params.id,
+        producerId: params.producerId,
+        kind: params.kind,
+        rtpParameters: params.rtpParameters,
+        appData: { socketId: params.socketId, ...(params.appData || {}) },
+      });
+
+      consumersRef.current.set(consumer.id, consumer);
+      addPeerTrack(params.socketId, params.producerId, consumer.track);
+
+      // The server holds every consumer paused until this point, so the
+      // first keyframe is not spent on a page that cannot draw it yet.
+      await request("sfu-resume-consumer", { consumerId: consumer.id });
+    } catch (err) {
+      console.error("[sfu] consume failed:", err.message);
+    }
+  }, [request, addPeerTrack]);
+
+  // ── Transport setup ──────────────────────────────────────────
+
+  const createSendTransport = useCallback(async () => {
+    const params = await request("sfu-create-transport", { direction: "send" });
+    const transport = deviceRef.current.createSendTransport(params);
+
+    transport.on("connect", ({ dtlsParameters }, callback, errback) => {
+      request("sfu-connect-transport", { transportId: transport.id, dtlsParameters })
+        .then(() => callback())
+        .catch(errback);
+    });
+
+    // Fires the first time each track is sent up this transport.
+    transport.on("produce", ({ kind, rtpParameters, appData }, callback, errback) => {
+      request("sfu-produce", { transportId: transport.id, kind, rtpParameters, appData })
+        .then(({ id }) => callback({ id }))
+        .catch(errback);
+    });
+
+    transport.on("connectionstatechange", (state) => {
+      if (state === "failed") {
+        console.error("[sfu] send transport failed");
+        setError("Lost the connection to the media server.");
+      }
+    });
+
+    sendTransportRef.current = transport;
+  }, [request]);
+
+  const createRecvTransport = useCallback(async () => {
+    const params = await request("sfu-create-transport", { direction: "recv" });
+    const transport = deviceRef.current.createRecvTransport(params);
+
+    transport.on("connect", ({ dtlsParameters }, callback, errback) => {
+      request("sfu-connect-transport", { transportId: transport.id, dtlsParameters })
+        .then(() => callback())
+        .catch(errback);
+    });
+
+    transport.on("connectionstatechange", (state) => {
+      if (state === "failed") {
+        console.error("[sfu] recv transport failed");
+        setError("Lost the connection to the media server.");
+      }
+    });
+
+    recvTransportRef.current = transport;
+  }, [request]);
+
+  /** Send our own tracks up. An interpreter has no camera and sends audio only. */
+  const produceLocalMedia = useCallback(async () => {
+    const transport = sendTransportRef.current;
+    const stream = localStreamRef.current;
+    if (!transport || !stream) return;
+
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack && !producersRef.current.audio) {
+      producersRef.current.audio = await transport.produce({
+        track: audioTrack,
+        codecOptions: AUDIO_CODEC_OPTIONS,
+        appData: { source: "mic" },
+      });
+    }
+
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack && !producersRef.current.video) {
+      producersRef.current.video = await transport.produce({
+        track: videoTrack,
+        encodings: CAMERA_ENCODINGS,
+        codecOptions: CAMERA_CODEC_OPTIONS,
+        appData: { source: "camera" },
+      });
+    }
+  }, []);
+
+  /**
+   * Bring the whole media session up, once per successful join.
+   *
+   * Order is not incidental: the device has to know the router's
+   * capabilities before it can build a transport, the transports have to
+   * exist before anything can be produced or consumed, and only then is
+   * it safe to drain producers announced while we were still setting up.
+   */
+  const startSfu = useCallback(async () => {
+    const state = sfuStateRef.current;
+    if (state.starting || state.ready) return;
+    state.starting = true;
+
+    try {
+      const { rtpCapabilities } = await request("sfu-capabilities");
+
+      const device = new Device();
+      await device.load({ routerRtpCapabilities: rtpCapabilities });
+      deviceRef.current = device;
+
+      await createSendTransport();
+      await createRecvTransport();
+      await produceLocalMedia();
+
+      // Everyone already sending when we arrived.
+      const { producers } = await request("sfu-existing-producers");
+      for (const p of producers) await consumeProducer(p);
+
+      const queued = pendingProducers.current;
+      pendingProducers.current = [];
+      for (const p of queued) await consumeProducer(p);
+
+      state.ready = true;
+    } catch (err) {
+      console.error("[sfu] setup failed:", err.message);
+      setError(`Could not start media: ${err.message}`);
+    } finally {
+      state.starting = false;
+    }
+  }, [request, createSendTransport, createRecvTransport, produceLocalMedia, consumeProducer]);
+
+  /**
+   * Drop every media object this tab holds.
+   *
+   * A reconnect gets a new socket id, so the server has already thrown
+   * away our transports and producers; keeping the local halves around
+   * would mean producing onto a transport the server never heard of.
+   */
+  const teardownSfu = useCallback(() => {
+    for (const consumer of consumersRef.current.values()) {
+      try { consumer.close(); } catch { /* already gone */ }
+    }
+    consumersRef.current.clear();
+    peerTracksRef.current.clear();
+    pendingProducers.current = [];
+
+    for (const key of ["audio", "video"]) {
+      try { producersRef.current[key]?.close(); } catch { /* already gone */ }
+      producersRef.current[key] = null;
+    }
+
+    try { sendTransportRef.current?.close(); } catch { /* already gone */ }
+    try { recvTransportRef.current?.close(); } catch { /* already gone */ }
+    sendTransportRef.current = null;
+    recvTransportRef.current = null;
+    deviceRef.current = null;
+    sfuStateRef.current = { starting: false, ready: false };
+  }, []);
+
+  /**
+   * Release every device and connection this tab holds.
+   *
+   * Three things need exactly this: unmounting, leaving deliberately, and
+   * the host closing the meeting. Keeping it in one place is what stops
+   * those three drifting apart — a camera left running after one of them
+   * is a light that stays on for no reason.
+   */
+  const teardown = useCallback(() => {
+    teardownSfu();
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    screenStreamRef.current?.getTracks().forEach(t => t.stop());
+    socketRef.current?.disconnect();
+  }, [teardownSfu]);
 
   useEffect(() => {
     if (!roomId && !interpreterToken) return;
@@ -154,9 +361,9 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
           : CAMERA_CONSTRAINTS;
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (!mounted) { 
-          stream.getTracks().forEach(t => t.stop()); 
-          return; 
+        if (!mounted) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
         }
 
         // Tell the encoder these are faces and speech, not a slideshow.
@@ -198,6 +405,10 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
 
         socket.on("disconnect", () => {
           setIsConnected(false);
+          // The server has dropped our transports along with the socket
+          // id, so the local halves now point at nothing.
+          teardownSfu();
+          setPeers({});
         });
 
         socket.on("connect_error", (err) => {
@@ -219,21 +430,22 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         });
 
         // ── Room users ──────────────────────────────────────
+        // These carry identity only now. Media arrives separately, when
+        // the server announces each producer, so nothing here has to
+        // decide who connects to whom.
         socket.on("room-users", users => {
           users.forEach(u => {
             updatePeer(u.socketId, { userName: u.userName, isMuted: u.isMuted, isVideoOff: u.isVideoOff, role: u.role||"participant", stream: null });
-            createPeer(u.socketId, true);
           });
+          startSfu();
         });
 
         socket.on("user-joined", u => {
           updatePeer(u.socketId, { userName: u.userName, isMuted: u.isMuted, isVideoOff: u.isVideoOff, role: "participant", stream: null });
-          createPeer(u.socketId, false);
         });
 
         socket.on("user-left", ({ socketId }) => {
-          peersRef.current[socketId]?.close();
-          delete peersRef.current[socketId];
+          dropPeerMedia(socketId);
           removePeer(socketId);
           setPresenterId(p => p === socketId ? null : p);
         });
@@ -242,19 +454,36 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         socket.on("interpreter-joined", ({ socketId, userName: n, channelId, channelName }) => {
           setInterpreterIds(prev => new Set([...prev, socketId]));
           updatePeer(socketId, { userName: n, role: "interpreter", channelId, channelName, stream: null, isMuted: false });
-          createPeer(socketId, false);
+        });
+
+        // Interpreters already in the room when we joined. They are kept
+        // out of `room-users` so they never render as tiles, which also
+        // meant a newcomer never learned they existed.
+        socket.on("existing-interpreters", list => {
+          setInterpreterIds(prev => {
+            const n = new Set(prev);
+            list.forEach(i => n.add(i.socketId));
+            return n;
+          });
+          list.forEach(i => {
+            updatePeer(i.socketId, {
+              userName: i.userName, role: "interpreter",
+              channelId: i.channelId, channelName: i.channelName,
+              stream: null, isMuted: false,
+            });
+          });
         });
 
         socket.on("interpreter-left", ({ socketId }) => {
           setInterpreterIds(prev => { const n = new Set(prev); n.delete(socketId); return n; });
-          peersRef.current[socketId]?.close();
-          delete peersRef.current[socketId];
+          dropPeerMedia(socketId);
           removePeer(socketId);
         });
 
         socket.on("interpreter-confirmed", ({ channel }) => {
           setMyRole("interpreter");
           setMyChannelInfo(channel);
+          startSfu();
         });
 
         socket.on("join-error", ({ code, message }) => {
@@ -264,51 +493,22 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         socket.on("interpreter-error", ({ message }) => setInterpreterError(message));
         socket.on("channel-deleted", () => setInterpreterError("This channel was removed by the host."));
 
-        // ── WebRTC ───────────────────────────────────────────
-        socket.on("offer", async ({ from, offer }) => {
-          try {
-            let pc = peersRef.current[from];
-            if (!pc) {
-              pc = createPeer(from, false);
-            }
-            
-            await pc.setRemoteDescription(new RTCSessionDescription(offer));
-            
-            const ans = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-            
-            await pc.setLocalDescription(ans);
-            
-            socket.emit("answer", { targetId: from, answer: pc.localDescription });
-          } catch (err) {
-            console.error(`[offer] Error handling offer from ${from}:`, err);
-            setError(`Failed to handle offer: ${err.message}`);
-          }
+        // ── SFU media ────────────────────────────────────────
+        socket.on("sfu-new-producer", ({ producerId, socketId }) => {
+          consumeProducer({ producerId, socketId });
         });
 
-        socket.on("answer", async ({ from, answer }) => {
-          try {
-            const pc = peersRef.current[from];
-            if (!pc) {
-              console.warn(`[answer] No peer connection found for ${from}`);
-              return;
-            }
-            await pc.setRemoteDescription(new RTCSessionDescription(answer));
-          } catch (err) {
-            console.error(`[answer] Error handling answer from ${from}:`, err);
-          }
+        socket.on("sfu-producer-closed", ({ producerId, socketId }) => {
+          dropPeerTrack(socketId, producerId);
         });
 
-        socket.on("ice-candidate", async ({ from, candidate }) => {
-          try {
-            const pc = peersRef.current[from];
-            if (!pc) {
-              console.warn(`[ice-candidate] No peer connection found for ${from}`);
-              return;
-            }
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } catch(err) {
-            console.warn(`[ice-candidate] Error adding ICE candidate from ${from}:`, err.message);
+        socket.on("sfu-consumer-closed", ({ consumerId, producerId, socketId }) => {
+          const consumer = consumersRef.current.get(consumerId);
+          if (consumer) {
+            try { consumer.close(); } catch { /* already gone */ }
+            consumersRef.current.delete(consumerId);
           }
+          dropPeerTrack(socketId, producerId);
         });
 
         // ── Media state ──────────────────────────────────────
@@ -338,6 +538,13 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
           setAdminId(socket.id);
         });
 
+        // The host closed the meeting. Everyone gets this, the host
+        // included, so one code path ends the call on every device.
+        socket.on("room-ended", () => {
+          setRoomEnded(true);
+          teardown();
+        });
+
       } catch(err) {
         console.error(`[init] Critical error during initialization:`, err);
         const errorMsg = err.message || "Could not access camera/microphone";
@@ -350,23 +557,20 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     return () => {
       mounted = false;
       navigator.mediaDevices.removeEventListener("devicechange", refreshDevices);
-      Object.values(peersRef.current).forEach(pc => pc.close());
-      peersRef.current = {};
-      localStreamRef.current?.getTracks().forEach(t => t.stop());
-      screenStreamRef.current?.getTracks().forEach(t => t.stop());
-      socketRef.current?.disconnect();
+      teardown();
     };
-  }, [roomId, userName, interpreterToken, createPeer, updatePeer, removePeer, refreshDevices]);
+  }, [roomId, userName, interpreterToken, updatePeer, removePeer, refreshDevices,
+      teardown, teardownSfu, startSfu, consumeProducer, dropPeerTrack, dropPeerMedia]);
 
   // ── Device switching ──────────────────────────────────────
+  // replaceTrack swaps what a producer is sending without renegotiating,
+  // so nobody else sees anything more than the picture changing.
   const switchCamera = useCallback(async deviceId => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId }, width: 1280, height: 720 } });
       const t = s.getVideoTracks()[0];
-      Object.values(peersRef.current).forEach(pc => {
-        const sender = pc.getSenders().find(s => s.track?.kind === "video");
-        if (sender) sender.replaceTrack(t);
-      });
+      setContentHints(new MediaStream([t]));
+      await producersRef.current.video?.replaceTrack({ track: t });
       const old = localStreamRef.current?.getVideoTracks()[0];
       if (old) { old.stop(); localStreamRef.current.removeTrack(old); }
       localStreamRef.current.addTrack(t);
@@ -380,10 +584,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
       const s = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId }, echoCancellation: true } });
       const t = s.getAudioTracks()[0];
       t.enabled = !isMuted;
-      Object.values(peersRef.current).forEach(pc => {
-        const sender = pc.getSenders().find(s => s.track?.kind === "audio");
-        if (sender) sender.replaceTrack(t);
-      });
+      await producersRef.current.audio?.replaceTrack({ track: t });
       const old = localStreamRef.current?.getAudioTracks()[0];
       if (old) { old.stop(); localStreamRef.current.removeTrack(old); }
       localStreamRef.current.addTrack(t);
@@ -401,12 +602,26 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     });
   }, []);
 
+  /**
+   * Muting pauses the producer as well as the track.
+   *
+   * On a mesh, disabling the track was enough — silence still went out,
+   * but only to the people in the call. Through an SFU the server would
+   * keep forwarding that silence to everyone, so pausing at the source
+   * is what actually stops the bytes.
+   */
   const toggleMute = useCallback(() => {
     const t = localStreamRef.current?.getAudioTracks()[0];
     if (!t) return;
     t.enabled = !t.enabled;
     const m = !t.enabled;
     setIsMuted(m);
+
+    const producer = producersRef.current.audio;
+    if (producer) {
+      if (m) producer.pause(); else producer.resume();
+      socketRef.current?.emit("sfu-pause-producer", { producerId: producer.id, paused: m });
+    }
     socketRef.current?.emit("toggle-mute", { isMuted: m });
   }, []);
 
@@ -416,40 +631,28 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     t.enabled = !t.enabled;
     const off = !t.enabled;
     setIsVideoOff(off);
+
+    const producer = producersRef.current.video;
+    if (producer) {
+      if (off) producer.pause(); else producer.resume();
+      socketRef.current?.emit("sfu-pause-producer", { producerId: producer.id, paused: off });
+    }
     socketRef.current?.emit("toggle-video", { isVideoOff: off });
   }, []);
 
-  const startPresentation = useCallback(async captureStream => {
-    screenStreamRef.current = captureStream;
-    setContentHints(captureStream, { screenShare: true });
-    const st = captureStream.getVideoTracks()[0];
-    Object.values(peersRef.current).forEach(pc => {
-      const s = pc.getSenders().find(s => s.track?.kind === "video");
-      if (s) s.replaceTrack(st);
-    });
-    // Screen content needs the opposite trade-off from a face: hold
-    // resolution so text stays readable and let the frame rate drop.
-    tuneAllSenders(peersRef.current, { screenShare: true });
-    const lv = localStreamRef.current?.getVideoTracks()[0];
-    if (lv) localStreamRef.current.removeTrack(lv);
-    localStreamRef.current.addTrack(st);
-    setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
-    setIsSharingScreen(true);
-    socketRef.current?.emit("screen-share-started");
-    st.onended = () => stopPresentation();
-  }, []);
-
+  /**
+   * Screen share replaces the camera track on the existing video
+   * producer rather than adding a second one. Viewers keep consuming the
+   * same producer and simply see different pixels, which is why nobody
+   * has to resubscribe when a presentation starts.
+   */
   const stopPresentation = useCallback(async () => {
     screenStreamRef.current?.getTracks().forEach(t => t.stop());
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: CAMERA_CONSTRAINTS.video });
       setContentHints(s);
       const t = s.getVideoTracks()[0];
-      Object.values(peersRef.current).forEach(pc => {
-        const sender = pc.getSenders().find(s => s.track?.kind === "video");
-        if (sender) sender.replaceTrack(t);
-      });
-      tuneAllSenders(peersRef.current);
+      await producersRef.current.video?.replaceTrack({ track: t });
       const old = localStreamRef.current?.getVideoTracks()[0];
       if (old) localStreamRef.current.removeTrack(old);
       localStreamRef.current.addTrack(t);
@@ -459,17 +662,47 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     socketRef.current?.emit("screen-share-stopped");
   }, []);
 
+  const startPresentation = useCallback(async captureStream => {
+    screenStreamRef.current = captureStream;
+    setContentHints(captureStream, { screenShare: true });
+    const st = captureStream.getVideoTracks()[0];
+
+    const producer = producersRef.current.video;
+    if (producer) {
+      await producer.replaceTrack({ track: st });
+    } else if (sendTransportRef.current) {
+      // An interpreter has no video producer yet; create one to present.
+      producersRef.current.video = await sendTransportRef.current.produce({
+        track: st,
+        encodings: SCREEN_ENCODINGS,
+        appData: { source: "screen" },
+      });
+    }
+
+    const lv = localStreamRef.current?.getVideoTracks()[0];
+    if (lv) localStreamRef.current.removeTrack(lv);
+    localStreamRef.current.addTrack(st);
+    setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+    setIsSharingScreen(true);
+    socketRef.current?.emit("screen-share-started");
+    st.onended = () => stopPresentation();
+  }, [stopPresentation]);
+
   // ── Interpretation actions ────────────────────────────────
   const createChannel  = useCallback((src, tgt) => socketRef.current?.emit("create-interpretation-channel", { sourceLang: src, targetLang: tgt }), []);
   const deleteChannel  = useCallback(id => socketRef.current?.emit("delete-interpretation-channel", { channelId: id }), []);
 
   const sendMessage = useCallback(msg => socketRef.current?.emit("send-message", { message: msg }), []);
-  const leaveRoom   = useCallback(() => {
-    Object.values(peersRef.current).forEach(pc => pc.close());
-    peersRef.current = {};
-    localStreamRef.current?.getTracks().forEach(t => t.stop());
-    screenStreamRef.current?.getTracks().forEach(t => t.stop());
-    socketRef.current?.disconnect();
+  const leaveRoom = useCallback(() => { teardown(); }, [teardown]);
+
+  /**
+   * Close the meeting for everyone. The server checks that this socket is
+   * the admin, so a non-host calling it achieves nothing; the local
+   * teardown waits for the server's `room-ended` broadcast, which is what
+   * confirms the request was accepted.
+   */
+  const endRoomForAll = useCallback(() => {
+    socketRef.current?.emit("end-room");
   }, []);
 
   const myId = socketRef.current?.id;
@@ -485,19 +718,8 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     });
   }, [roomId, userName]);
 
-  // Re-apply the budget whenever the call size changes. In a mesh your
-  // upstream is multiplied by the number of people you send to, so the
-  // per-peer bitrate has to come down as the room fills up (and back up
-  // again when it empties).
-  const peerCount = Object.keys(peers).length;
-  useEffect(() => {
-    if (peerCount === 0) return;
-    tuneAllSenders(peersRef.current, { screenShare: isSharingScreen });
-  }, [peerCount, isSharingScreen]);
-
-
   return {
-    joinError, submitRoomPassword,
+    joinError, submitRoomPassword, roomEnded,
     localStream, peers, interpreterIds,
     isMuted, isVideoOff, isSharingScreen,
     messages, error, isConnected,
@@ -515,7 +737,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     // Actions
     toggleMute, toggleVideo,
     startPresentation, stopPresentation,
-    sendMessage, leaveRoom,
+    sendMessage, leaveRoom, endRoomForAll,
     mySocketId: myId,
     socketRef,
   };
