@@ -58,13 +58,25 @@ export async function verifyRoomPassword(roomId, password) {
 }
 
 export async function createRoom(password) {
-  const res = await fetch(apiUrl("/api/rooms"), {
+  const res = await fetch(apiUrl("/api/room-requests"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("oguzmeeting_auth_token") || localStorage.getItem("zoomclone_auth_token") || ""}` },
     body: JSON.stringify(password ? { password } : {}),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Failed to create the meeting.");
+  if (!res.ok) throw new Error(data.error || "Room requests are unavailable. Restart the backend server and try again.");
+  if (res.status !== 202 || data.state !== "pending" || !data.requestId || data.roomId) {
+    throw new Error("The server did not return a room request. Restart the backend server before trying again.");
+  }
+  return data;
+}
+
+export async function getRoomCreationRequest(requestId) {
+  const res = await fetch(apiUrl(`/api/room-requests/${encodeURIComponent(requestId)}`), {
+    headers: { Authorization: `Bearer ${localStorage.getItem("oguzmeeting_auth_token") || localStorage.getItem("zoomclone_auth_token") || ""}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const error = new Error(data.error || "Could not check room approval."); error.status = res.status; throw error; }
   if (data.pass) setRoomPass(data.roomId, data.pass);
   return data;
 }

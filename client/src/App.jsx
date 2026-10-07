@@ -7,6 +7,7 @@ import { LoadingScreen } from "./components/pageStyles";
 
 // Code-split everything past the login screen — a first-time visitor
 // only needs to download the auth form, not WebRTC/recording/interpretation code.
+const Admin = lazy(() => import("./components/Admin"));
 const Register = lazy(() => import("./components/Register"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
 const Room = lazy(() => import("./components/Room"));
@@ -25,6 +26,7 @@ function App() {
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
           <Route path="/" element={<RootRedirect />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />

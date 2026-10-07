@@ -21,7 +21,7 @@ const rawOrigins = process.env.ALLOWED_ORIGINS || "*";
 const corsOrigin = rawOrigins === "*"
   ? "*"
   : rawOrigins.split(",").map(o => o.trim()).filter(Boolean);
-const corsOptions = { origin: corsOrigin, methods: ["GET", "POST"] };
+const corsOptions = { origin: corsOrigin, methods: ["GET", "POST", "PATCH", "DELETE"] };
 app.use(cors(corsOptions));
 
 app.use(express.json());
@@ -117,7 +117,7 @@ const roomPasswordLimiter = rateLimit({
 });
 
 // ── JSON auth store ─────────────────────────────────────────
-const dataDir = path.join(__dirname, "data");
+const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
 const usersDbPath = path.join(dataDir, "users.json");
 const sessionsDbPath = path.join(dataDir, "sessions.json");
 
@@ -183,6 +183,7 @@ function sanitizeUser(user) {
     name: user.name,
     email: user.email,
     createdAt: user.createdAt,
+    canCreateRooms: user.canCreateRooms !== false,
   };
 }
 
@@ -275,6 +276,133 @@ setInterval(() => {
 const rooms = new Map();
 const interpreterTokens = new Map();
 
+// Admin sessions are separate from meeting accounts and expire after eight hours.
+const adminSessions = new Map();
+const roomCreationRequests = new Map();
+setInterval(() => {
+  for (const [id, request] of roomCreationRequests) {
+    if (Date.now() - request.createdAt > 24 * 60 * 60 * 1000) roomCreationRequests.delete(id);
+  }
+}, 60 * 60 * 1000).unref();
+function requireAdmin(req, res, next) {
+  const token = getTokenFromRequest(req);
+  if ((adminSessions.get(token) || 0) <= Date.now()) {
+    adminSessions.delete(token);
+    return res.status(401).json({ error: "Please sign in as administrator." });
+  }
+  next();
+}
+app.post("/api/admin/login", loginSweepLimiter, loginLimiter, (req, res) => {
+  const matches = (a, b) => crypto.timingSafeEqual(
+    crypto.createHash("sha256").update(String(a || "")).digest(),
+    crypto.createHash("sha256").update(b).digest());
+  if (!matches(req.body?.username, process.env.ADMIN_USERNAME || "admin") ||
+      !matches(req.body?.password, process.env.ADMIN_PASSWORD || "admin")) {
+    return res.status(401).json({ error: "Invalid administrator credentials." });
+  }
+  const token = crypto.randomBytes(32).toString("hex");
+  adminSessions.set(token, Date.now() + 8 * 60 * 60 * 1000);
+  res.json({ token });
+});
+app.use("/api/admin", requireAdmin);
+app.post("/api/admin/logout", (req, res) => {
+  adminSessions.delete(getTokenFromRequest(req));
+  res.json({ ok: true });
+});
+app.get("/api/admin/state", (req, res) => {
+  res.json({ creationRequests: [...roomCreationRequests.values()]
+    .filter(request => request.state === "pending")
+    .map(request => ({ id: request.id, createdAt: request.createdAt, user: sanitizeUser(users.find(user => user.id === request.userId)), hasPassword: !!request.passwordHash })),
+    users: users.map(sanitizeUser), rooms: [...rooms.values()].map(room => ({
+    id: room.id, createdAt: room.createdAt,
+    creator: sanitizeUser(users.find(u => u.id === room.creatorId)),
+    participants: [...room.participants.values(), ...room.interpreters.values()],
+    pending: [...room.pending.values()].map(entry => ({
+      userId: entry.userId, user: sanitizeUser(users.find(u => u.id === entry.userId)), role: entry.role,
+    })),
+  })) });
+});
+app.post("/api/admin/users", (req, res) => {
+  const name = String(req.body?.name || "").trim();
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  if (name.length < 2 || !email.includes("@") || password.length < 6)
+    return res.status(400).json({ error: "Enter a name, valid email, and password of at least 6 characters." });
+  if (users.some(u => u.email === email)) return res.status(409).json({ error: "Email already exists." });
+  const user = { id: uuidv4(), name, email, ...createPasswordRecord(password),
+    canCreateRooms: req.body.canCreateRooms !== false, createdAt: new Date().toISOString() };
+  users.push(user); saveUsers();
+  res.status(201).json({ user: sanitizeUser(user) });
+});
+app.patch("/api/admin/users/:id", (req, res) => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found." });
+  if (typeof req.body.canCreateRooms !== "boolean") return res.status(400).json({ error: "Permission must be true or false." });
+  user.canCreateRooms = req.body.canCreateRooms; saveUsers();
+  res.json({ user: sanitizeUser(user) });
+});
+function removeConnectedUser(userId, roomId) {
+  for (const socket of io.sockets.sockets.values()) {
+    if (socket.accountId === userId && (!roomId || socket.data.roomId === roomId || socket.pendingRoomId === roomId)) {
+      socket.emit("room-ended", { reason: "admin-removed" });
+      socket.disconnect(true);
+    }
+  }
+}
+app.delete("/api/admin/users/:id", (req, res) => {
+  if (!users.some(u => u.id === req.params.id)) return res.status(404).json({ error: "User not found." });
+  users = users.filter(u => u.id !== req.params.id);
+  for (const [id, request] of roomCreationRequests) if (request.userId === req.params.id) roomCreationRequests.delete(id);
+  for (const [token, session] of Object.entries(sessions)) if (session.userId === req.params.id) delete sessions[token];
+  for (const room of rooms.values()) { room.pending.delete(req.params.id); room.approved.delete(req.params.id); }
+  removeConnectedUser(req.params.id); saveUsers(); saveSessions();
+  res.json({ ok: true });
+});
+app.delete("/api/admin/rooms/:id", (req, res) => {
+  const room = getRoom(req.params.id);
+  if (!room) return res.status(404).json({ error: "Room not found." });
+  endRoom(room); res.json({ ok: true });
+});
+app.post("/api/admin/rooms/:id/approval", (req, res) => {
+  const room = getRoom(req.params.id);
+  const userId = req.body?.userId;
+  if (!room) return res.status(404).json({ error: "Room not found." });
+  if (!room.pending.has(userId)) return res.status(404).json({ error: "Request is no longer pending." });
+  if (typeof req.body.approve !== "boolean") return res.status(400).json({ error: "Choose approve or reject." });
+  room.pending.delete(userId);
+  if (req.body.approve) { room.approved.add(userId); room.denied.delete(userId); }
+  else room.denied.add(userId);
+  for (const socket of io.sockets.sockets.values()) {
+    if (socket.accountId === userId && socket.pendingRoomId === room.id) {
+      socket.emit(req.body.approve ? "join-approved" : "join-rejected");
+    }
+  }
+  res.json({ ok: true });
+});
+app.delete("/api/admin/rooms/:id/users/:userId", (req, res) => {
+  const room = getRoom(req.params.id);
+  if (!room) return res.status(404).json({ error: "Room not found." });
+  room.approved.delete(req.params.userId); room.denied.add(req.params.userId);
+  room.pending.delete(req.params.userId);
+  removeConnectedUser(req.params.userId, room.id);
+  res.json({ ok: true });
+});
+function admit(socket, room, role) {
+  const user = getUserFromToken(socket.handshake.auth?.token);
+  if (!user) { socket.emit("join-rejected"); return false; }
+  socket.accountId = user.id;
+  if (socket.data.roomId) return false;
+  if (room.denied.has(user.id)) { socket.emit("join-rejected"); return false; }
+  if (!room.approved.has(user.id)) {
+    room.pending.set(user.id, { userId: user.id, role });
+    socket.pendingRoomId = room.id;
+    socket.emit("join-pending");
+    return false;
+  }
+  socket.pendingRoomId = null;
+  return true;
+}
+
 // ── REST: Auth ───────────────────────────────────────────────
 app.post("/api/auth/register", registerLimiter, (req, res) => {
   const name = String(req.body?.name || "").trim();
@@ -330,7 +458,7 @@ app.post("/api/auth/login", loginSweepLimiter, loginLimiter, (req, res) => {
 });
 
 // DEV: list users (sanitized) — only when not in production
-app.get("/api/auth/_debug/users", (req, res) => {
+app.get("/api/auth/_debug/users", requireAdmin, (req, res) => {
   if (process.env.NODE_ENV === "production") return res.status(404).end();
   res.json(users.map(u => sanitizeUser(u)));
 });
@@ -379,6 +507,10 @@ function endRoom(room) {
   const roomId = room.id;
   io.to(roomId).emit("room-ended", { reason: "host-ended" });
   rooms.delete(roomId);
+  for (const socket of io.sockets.sockets.values()) {
+    if (socket.pendingRoomId === roomId) { socket.emit("room-ended", { reason: "admin-ended" }); socket.pendingRoomId = null; }
+  }
+  for (const [pass, entry] of roomPasses) if (entry.roomId === roomId) roomPasses.delete(pass);
 
   for (const socketId of [...room.participants.keys(), ...room.interpreters.keys()]) {
     const s = io.sockets.sockets.get(socketId);
@@ -405,7 +537,8 @@ function endRoom(room) {
 }
 
 // ── REST: Create room ─────────────────────────────────────────
-app.post("/api/rooms", roomLimiter, (req, res) => {
+function createMeeting(req, res, passwordRecord) {
+  if (req.authUser.canCreateRooms === false) return res.status(403).json({ error: "The administrator has disabled room creation for your account." });
   const roomId = uuidv4().slice(0, 8).toUpperCase();
   const rawPassword = typeof req.body?.password === "string" ? req.body.password.trim() : "";
   if (rawPassword && rawPassword.length < 4) {
@@ -417,22 +550,63 @@ app.post("/api/rooms", roomLimiter, (req, res) => {
   const passwordSalt = rawPassword ? crypto.randomBytes(16).toString("hex") : null;
   rooms.set(roomId, {
     id: roomId,
+    creatorId: req.authUser.id,
+    approved: new Set([req.authUser.id]), pending: new Map(), denied: new Set(),
     createdAt: new Date(),
     adminId: null,
     participants: new Map(),   // role=participant
     interpreters: new Map(),   // role=interpreter
     presenterId: null,
     interpretationChannels: [],
-    passwordSalt,
-    passwordHash: rawPassword ? hashPassword(rawPassword, passwordSalt) : null,
+    passwordSalt: passwordRecord ? passwordRecord.passwordSalt : passwordSalt,
+    passwordHash: passwordRecord ? passwordRecord.passwordHash : (rawPassword ? hashPassword(rawPassword, passwordSalt) : null),
   });
   // The creator gets a pass straight away so they are not asked for the
   // password they just chose.
   res.json({
     roomId,
-    hasPassword: !!rawPassword,
-    pass: rawPassword ? issueRoomPass(roomId) : null,
+    hasPassword: !!rooms.get(roomId).passwordHash,
+    pass: rooms.get(roomId).passwordHash ? issueRoomPass(roomId) : null,
   });
+}
+// A user requests a room; only an admin decision can allocate it.
+app.post(["/api/room-requests", "/api/rooms"], requireAuth, roomLimiter, (req, res) => {
+  if (req.authUser.canCreateRooms === false) return res.status(403).json({ error: "The administrator has disabled room creation requests for your account." });
+  const password = typeof req.body?.password === "string" ? req.body.password.trim() : "";
+  if (password && password.length < 4) return res.status(400).json({ error: "Room password must be at least 4 characters." });
+  const existing = [...roomCreationRequests.values()].find(request => request.userId === req.authUser.id && request.state === "pending");
+  if (existing) return res.status(202).json({ requestId: existing.id, state: existing.state });
+  const request = { id: uuidv4(), userId: req.authUser.id, state: "pending", createdAt: Date.now(),
+    ...(password ? createPasswordRecord(password) : { passwordSalt: null, passwordHash: null }) };
+  roomCreationRequests.set(request.id, request);
+  res.status(202).json({ requestId: request.id, state: request.state });
+});
+app.get("/api/room-requests/:id", requireAuth, (req, res) => {
+  const request = roomCreationRequests.get(req.params.id);
+  if (!request || request.userId !== req.authUser.id) return res.status(404).json({ error: "Room request not found. Please submit a new request." });
+  if (request.state === "approved" && !rooms.has(request.result.roomId)) return res.status(410).json({ error: "The approved room has already closed. Please request a new room." });
+  res.json({ requestId: request.id, state: request.state,
+    ...(request.state === "approved" ? { roomId: request.result.roomId, hasPassword: request.result.hasPassword,
+      pass: request.result.hasPassword ? issueRoomPass(request.result.roomId) : null } : {}) });
+});
+app.post("/api/admin/room-requests/:id/decision", (req, res) => {
+  const request = roomCreationRequests.get(req.params.id);
+  if (!request) return res.status(404).json({ error: "Room request not found." });
+  if (request.state !== "pending") return res.status(409).json({ error: "This request has already been decided." });
+  if (typeof req.body?.approve !== "boolean") return res.status(400).json({ error: "Choose Yes or No." });
+  const owner = users.find(user => user.id === request.userId);
+  if (!owner) return res.status(404).json({ error: "User no longer exists." });
+  if (!req.body.approve) { request.state = "rejected"; return res.json({ ok: true }); }
+  if (owner.canCreateRooms === false) return res.status(403).json({ error: "Room creation requests are disabled for this user. Enable permission first or reject this request." });
+  createMeeting({ authUser: owner, body: {} }, { json(result) { request.result = result; } }, request);
+  request.state = "approved";
+  res.json({ ok: true, roomId: request.result.roomId });
+});
+app.post("/api/admin/rooms", (req, res) => {
+  const owner = users.find(user => user.id === req.body?.creatorId);
+  if (!owner) return res.status(400).json({ error: "Select a room creator." });
+  req.authUser = owner;
+  createMeeting(req, res);
 });
 
 // Constant-time comparison; returns true when the room has no password set.
@@ -508,7 +682,7 @@ io.on("connection", (socket) => {
 
   // ── JOIN (participant) ─────────────────────────────────────
   socket.on("join-room", ({ roomId, userName, pass }) => {
-    const id = roomId.toUpperCase();
+    const id = String(roomId || "").toUpperCase();
 
     // A protected room must be gated here, not only in the REST check:
     // this handler is reachable directly and would otherwise let anyone
@@ -521,18 +695,14 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (!rooms.has(id)) {
-      rooms.set(id, {
-        id, createdAt: new Date(), adminId: null,
-        participants: new Map(), interpreters: new Map(),
-        presenterId: null, interpretationChannels: [],
-      });
-    }
     const room = rooms.get(id);
+    if (!room) { socket.emit("join-error", { code: "not-found", message: "Room no longer exists." }); return; }
+    if (!admit(socket, room, "participant")) return;
     if (!room.adminId) room.adminId = socket.id;
 
     const user = {
       socketId: socket.id,
+      userId: socket.accountId,
       userName: userName || `Guest-${socket.id.slice(0,4)}`,
       roomId: id, isMuted: false, isVideoOff: false,
       role: "participant",
@@ -587,6 +757,7 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (!admit(socket, room, "interpreter")) return;
     const interpreterName = userName || `Interpreter (${channel.targetLang})`;
     channel.interpreterSocketId = socket.id;
     channel.interpreterName = interpreterName;
@@ -594,6 +765,7 @@ io.on("connection", (socket) => {
 
     const interpreterUser = {
       socketId: socket.id,
+      userId: socket.accountId,
       userName: interpreterName,
       roomId: entry.roomId,
       role: "interpreter",
@@ -623,6 +795,7 @@ io.on("connection", (socket) => {
     // Notify participants a new interpreter joined (but don't show in main grid)
     socket.to(entry.roomId).emit("interpreter-joined", {
       socketId: socket.id,
+      userId: socket.accountId,
       userName: interpreterName,
       channelId: entry.channelId,
       channelName: channel.name,
@@ -684,8 +857,7 @@ io.on("connection", (socket) => {
   // ── ADMIN: Create interpretation channel ───────────────────
   socket.on("create-interpretation-channel", ({ sourceLang, targetLang }) => {
     const room = getRoom(socket.data?.roomId);
-    // First joiner is the admin
-    if (!room.adminId) room.adminId = socket.id;
+    if (!room || room.adminId !== socket.id) return;
 
     const channelId = uuidv4();
     const token = uuidv4();
@@ -745,6 +917,10 @@ io.on("connection", (socket) => {
 
   // ── Disconnect ─────────────────────────────────────────────
   socket.on("disconnect", () => {
+    if (socket.pendingRoomId) {
+      const stillWaiting = [...io.sockets.sockets.values()].some(other => other.id !== socket.id && other.accountId === socket.accountId && other.pendingRoomId === socket.pendingRoomId);
+      if (!stillWaiting) getRoom(socket.pendingRoomId)?.pending.delete(socket.accountId);
+    }
     const { roomId, role } = socket.data || {};
 
     // Media first, and before the early return: a socket that never
@@ -786,7 +962,7 @@ io.on("connection", (socket) => {
         setTimeout(() => {
           const r = getRoom(roomId);
           if (r && r.participants.size === 0 && r.interpreters.size === 0) {
-            rooms.delete(roomId);
+            endRoom(r);
             console.log(`[ROOM] ${roomId} deleted`);
           }
         }, 60_000);
@@ -795,6 +971,9 @@ io.on("connection", (socket) => {
     console.log(`[-] ${socket.id}`);
   });
 });
+
+app.get("/api/health", (req, res) => res.json({ ok: true, roomCreationApproval: true }));
+app.use("/api", (req, res) => res.status(404).json({ error: "API endpoint not found. Restart the backend server if it is out of date." }));
 
 // ── SPA fallback: Serve index.html for all non-API routes ────
 app.get("*", (req, res) => {

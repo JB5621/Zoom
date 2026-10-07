@@ -26,7 +26,7 @@ export default function InterpreterRoom() {
   // Join as interpreter — roomId is derived from token validation,
   // but useWebRTC handles it all via interpreterToken
   const {
-    localStream, peers, interpreterError,
+    localStream, peers, interpreterError, joinError, roomEnded,
     isMuted, toggleMute,
     myChannelInfo, isConnected,
     leaveRoom, mySocketId,
@@ -50,6 +50,10 @@ export default function InterpreterRoom() {
   }, []);
 
   function handleLeave() { leaveRoom(); navigate("/"); }
+
+  if (roomEnded) return <div style={{ padding: 48, textAlign: "center", color: "var(--text-1)" }}><h2>Meeting access ended</h2><p>The room was closed or an administrator removed you.</p><a href="/dashboard">Back to dashboard</a></div>;
+
+  if (joinError) return <div style={{ padding: 48, textAlign: "center", color: "var(--text-1)" }}><h2>{joinError.code === "pending" ? "Waiting for approval" : "Unable to join"}</h2><p>{joinError.message}</p><a href="/dashboard">Back to dashboard</a></div>;
 
   if (interpreterError) return (
     <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",

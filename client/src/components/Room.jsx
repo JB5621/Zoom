@@ -273,6 +273,14 @@ export default function Room() {
     </div>
   );
 
+  if (joinError && joinError.code !== "password-required") return (
+    <div style={{ minHeight: "100vh", display: "grid", placeContent: "center", padding: 32, textAlign: "center", background: "var(--bg)", color: "var(--text-1)" }}>
+      <h2>{joinError.code === "pending" ? "Waiting for approval" : "Unable to join"}</h2>
+      <p>{joinError.message}</p>
+      <button onClick={() => navigate("/dashboard")}>Back to dashboard</button>
+    </div>
+  );
+
   if (joinError?.code === "password-required") {
     return <RoomPasswordGate roomId={roomId} onSubmit={submitRoomPassword} />;
   }

@@ -246,3 +246,26 @@ Free TURN providers: **Metered.ca**, **Twilio**, **Xirsys**
 | Video/Audio | WebRTC (browser native) |
 | Styling | CSS-in-JS (inline styles) |
 | Fonts | Syne + DM Sans (Google Fonts) |
+
+## Admin panel
+
+Open `https://localhost:5173/admin` while the development servers are running.
+Sign in with username `admin` and password `admin`. Override these defaults with
+`ADMIN_USERNAME` and `ADMIN_PASSWORD` in `server/.env`; restart the server after changing them.
+Admin sessions are separate from user accounts and expire after eight hours.
+
+The panel supports adding/deleting users, changing each user's room-creation
+permission, creating rooms for a selected user, deleting rooms, viewing connected
+participants/interpreters, removing users from rooms, and approving/rejecting joins.
+Each user request for a new room appears as an alert in `/admin` with **Accept request**
+and **Reject request** buttons. No room is created before approval. The requesting
+user waits on the dashboard and enters automatically after Yes, or sees a rejection
+message after No. Requests are retained for up to 24 hours while the server runs;
+the dashboard remembers the pending request across refreshes in the same tab.
+Admins can also create rooms directly for users. Room creators are automatically
+approved to join; everyone else waits for administrator join approval. Rejected or removed accounts cannot rejoin that room. The panel refreshes
+every three seconds. User accounts and creation permissions persist in the local
+JSON database; rooms and room approvals last until the server restarts.
+
+Run the isolated API/socket authorization test with `node --test server/test/admin.cjs`.
+The test uses a temporary database and stubs media workers; it does not test live audio/video.

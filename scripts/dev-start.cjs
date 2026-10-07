@@ -80,11 +80,32 @@ function detectScheme(host, port) {
   });
 }
 
+function supportsRoomRequests(scheme) {
+  return new Promise(resolve => {
+    const transport = require(scheme === 'https' ? 'https' : 'http');
+    const req = transport.get(`${scheme}://127.0.0.1:5000/api/health`, { rejectUnauthorized: false }, res => {
+      let body = '';
+      res.on('data', chunk => { body += chunk; });
+      res.on('end', () => {
+        try { resolve(res.statusCode === 200 && JSON.parse(body).roomCreationApproval === true); }
+        catch { resolve(false); }
+      });
+    });
+    req.setTimeout(3000, () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(false));
+  });
+}
+
 (async () => {
   serverWasAlreadyRunning = await isPortOpen('127.0.0.1', 5000);
   let apiScheme = 'https'; // what we start ourselves, below
   if (serverWasAlreadyRunning) {
     apiScheme = await detectScheme('127.0.0.1', 5000);
+    if (!await supportsRoomRequests(apiScheme)) {
+      console.error('The backend on port 5000 is out of date and cannot handle room creation requests. Stop that backend, then run npm run dev again.');
+      process.exitCode = 1;
+      return;
+    }
     console.log(`Port 5000 is already in use; reusing the existing backend server (${apiScheme}).`);
   } else {
     // ensure certs exist for HTTPS
@@ -97,7 +118,7 @@ function detectScheme(host, port) {
       console.warn('Failed to run cert generator:', e && e.message);
     }
 
-    server = run('server', npmCmd, ['run', 'start'], {
+    server = run('server', npmCmd, ['run', 'dev'], {
       cwd: path.join(root, 'server'),
       env: {
         ...process.env,

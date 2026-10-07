@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node ../scripts/generate-cert.cjs && nodemon server.js"
+    "dev": "node ../scripts/generate-cert.cjs && nodemon --watch server.js --watch sfu.js server.js"
   },
   "dependencies": {
     "compression": "^1.7.5",

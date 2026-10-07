@@ -383,6 +383,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         // Use the vite proxy for socket.io or fall back to direct server URL
         const SERVER_URL = import.meta.env.VITE_SERVER_URL || "/";
         const socket = io(SERVER_URL, {
+          auth: { token: localStorage.getItem("oguzmeeting_auth_token") || localStorage.getItem("zoomclone_auth_token") || "" },
           reconnection: true,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5001,
@@ -401,6 +402,17 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
             // the pass may have been obtained since the first attempt.
             socket.emit("join-room", { roomId, userName, pass: getRoomPass(roomId) });
           }
+        });
+
+        socket.on("join-pending", () => setJoinError({ code: "pending", message: "Waiting for administrator approval. This page will join automatically when approved." }));
+        socket.on("join-rejected", () => {
+          setJoinError({ code: "rejected", message: "Your request to join was denied. Contact the administrator." });
+          setInterpreterError("Your request to join was denied. Contact the administrator.");
+        });
+        socket.on("join-approved", () => {
+          setJoinError(null);
+          if (interpreterToken) socket.emit("join-as-interpreter", { token: interpreterToken, userName });
+          else socket.emit("join-room", { roomId, userName, pass: getRoomPass(roomId) });
         });
 
         socket.on("disconnect", () => {

@@ -9,7 +9,7 @@ import ThemeToggle from "./ThemeToggle";
 import { QrCode, Hash, Link2 } from "./icons";
 
 import {
-  createRoom, lookupRoom, verifyRoomPassword, parseRoomRef, isSameOrigin,
+  createRoom, getRoomCreationRequest, lookupRoom, verifyRoomPassword, parseRoomRef, isSameOrigin,
 } from "../lib/roomAccess";
 
 // The scanner pulls in the QR detector, which is the largest thing on
@@ -29,6 +29,41 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const requestKey = `oguz_room_request_${user.id}`;
+  const [creationRequest, setCreationRequest] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(requestKey)) || null; } catch { return null; }
+  });
+  useEffect(() => {
+    if (!creationRequest) return;
+    let active = true;
+    let timer;
+    const check = async () => {
+      try {
+        const result = await getRoomCreationRequest(creationRequest.requestId);
+        if (!active) return;
+        setError("");
+        if (result.state !== "pending") {
+          sessionStorage.removeItem(requestKey);
+          setCreationRequest(null);
+          if (result.state === "rejected") setError("The administrator said No to your room creation request.");
+          else {
+            const query = new URLSearchParams({ name: creationRequest.name });
+            navigate(`/room/${result.roomId}?${query.toString()}`);
+          }
+          return;
+        }
+      } catch (err) {
+        if (!active) return;
+        setError(err.message);
+        if ([401, 404, 410].includes(err.status)) {
+          sessionStorage.removeItem(requestKey); setCreationRequest(null); return;
+        }
+      }
+      if (active) timer = setTimeout(check, 2000);
+    };
+    check();
+    return () => { active = false; clearTimeout(timer); };
+  }, [creationRequest, requestKey, navigate]);
 
   // Join state. `method` picks the route in; all three produce a room
   // reference and then follow the same path from there.
@@ -57,6 +92,7 @@ export default function Dashboard() {
   }
 
   async function handleCreate() {
+    if (loading || creationRequest) return;
     const meetingName = displayName.trim() || user?.name || "";
     if (!meetingName) return setError("Please enter your name first.");
     const pwd = newPassword.trim();
@@ -64,12 +100,10 @@ export default function Dashboard() {
     setLoading(true);
     setError("");
     try {
-      const { roomId } = await createRoom(pwd);
-      // The password rides along in the URL only for the host, so the invite
-      // panel can show it. It is never part of the shared link or the QR.
-      const q = new URLSearchParams({ name: meetingName });
-      if (pwd) q.set("pwd", pwd);
-      navigate(`/room/${roomId}?${q.toString()}`);
+      const result = await createRoom(pwd);
+      const request = { requestId: result.requestId, name: meetingName };
+      sessionStorage.setItem(requestKey, JSON.stringify(request));
+      setCreationRequest(request);
     } catch (err) {
       setError(err.message || "Failed to create room. Is the server running?");
     } finally {
@@ -186,12 +220,16 @@ export default function Dashboard() {
         <button
           style={S.btnPrimary}
           onClick={handleCreate}
-          disabled={loading}
+          disabled={loading || !!creationRequest}
           onMouseEnter={(e) => { e.target.style.background = "var(--accent-hover)"; }}
           onMouseLeave={(e) => { e.target.style.background = "var(--accent)"; }}
         >
-          {loading ? "Creating..." : "New Meeting"}
+          {creationRequest ? "Waiting for admin approval…" : loading ? "Sending request…" : "Request New Meeting"}
         </button>
+
+        {creationRequest && <p role="status" style={{ color: "var(--text-2)", lineHeight: 1.6 }}>
+          Your request was sent to the administrator. If they choose Yes, your room will open automatically. Please wait for their decision.
+        </p>}
 
         <div style={S.divider}>
           <div style={S.dividerLine} />
