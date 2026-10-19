@@ -495,3 +495,12 @@ button, input, select, textarea, a {
     margin-right: 0 !important;
   }
 }
+
+/* Buttons that pair an icons.jsx SVG with a text label. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.icon-btn > svg { flex-shrink: 0; }

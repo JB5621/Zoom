@@ -3,9 +3,11 @@
 // ============================================================
 import React, { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import S, { LoadingScreen, focusInput, blurInput } from "./pageStyles";
+import { useAuth } from "../context/AuthState";
+import S, { focusInput, blurInput } from "./pageStyles";
+import { LoadingScreen } from "./LoadingScreen";
 import ThemeToggle from "./ThemeToggle";
+import { UserPlus } from "./icons";
 
 export default function Register() {
   const { user, loading: authLoading, submitting, register } = useAuth();
@@ -83,8 +85,8 @@ export default function Register() {
           onBlur={blurInput}
         />
 
-        <button style={S.btnPrimary} onClick={handleSubmit} disabled={submitting}>
-          {submitting ? "Working..." : "Create account"}
+        <button className="icon-btn" style={S.btnPrimary} onClick={handleSubmit} disabled={submitting}>
+          {submitting ? "Working..." : <><UserPlus size={16} /> Create account</>}
         </button>
 
         {authError && <div style={S.error}>{authError}</div>}

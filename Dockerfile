@@ -1,5 +1,5 @@
 # Stage 1: build the React client
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app/client
 COPY client/package*.json ./
 RUN npm ci
@@ -11,7 +11,7 @@ RUN npm run build
 # Debian rather than Alpine: mediasoup compiles a native worker, and building
 # it against musl is the kind of thing that works until it doesn't. The extra
 # image size buys a toolchain that mediasoup actually targets.
-FROM node:20-bookworm-slim AS production
+FROM node:22-bookworm-slim AS production
 
 # mediasoup builds its worker from source on install.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -50,6 +50,6 @@ EXPOSE 40000-40199/tcp
 #     oguzmeeting
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:${PORT}/api/auth/me || exit 1
+  CMD wget -qO- http://localhost:${PORT}/api/health || exit 1
 
 CMD ["node", "server.js"]

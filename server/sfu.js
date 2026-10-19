@@ -455,7 +455,14 @@ function releasePeer(socketId, room) {
   if (roomId && room && !roomHasPeers(roomId)) closeRoomRouter(room);
 }
 
+async function mutePeer(socketId) {
+  for (const producer of sfuPeers.get(socketId)?.producers.values() || []) {
+    if (producer.kind === "audio") await producer.pause();
+  }
+}
+
 module.exports = {
+  mutePeer,
   initWorkers,
   getRouterForRoom,
   closeRoomRouter,

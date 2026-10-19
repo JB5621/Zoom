@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node ../scripts/generate-cert.cjs && nodemon --watch server.js --watch sfu.js server.js"
+    "dev": "node ../scripts/generate-cert.cjs && nodemon --watch server.js --watch sfu.js server.js",
+    "test": "node --test test/*.cjs"
   },
   "dependencies": {
     "compression": "^1.7.5",
@@ -20,5 +21,8 @@
   "devDependencies": {
     "nodemon": "^3.1.7",
     "selfsigned": "^2.4.1"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

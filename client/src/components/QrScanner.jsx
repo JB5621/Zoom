@@ -1,7 +1,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { scanImageData } from "../lib/qrDetect";
-import { Camera, ImageIcon, AlertTriangle } from "./icons";
+import { Camera, ImageIcon, AlertTriangle, RefreshCw } from "./icons";
 
 const WORK_EDGE = 640;
 
@@ -287,13 +287,14 @@ export default function QrScanner({ onResult }) {
           type="button"
           onClick={restart}
           style={{
-            display: "block", width: "100%", marginTop: "8px", minHeight: "44px",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            width: "100%", marginTop: "8px", minHeight: "44px",
             padding: "10px", background: "transparent", border: "none",
             color: "var(--accent-text)", fontWeight: 600, fontSize: "0.85rem",
             fontFamily: "inherit", cursor: "pointer",
           }}
         >
-          {error ? "Try the camera again" : "Scan another code"}
+          {error ? <><Camera size={16} /> Try the camera again</> : <><RefreshCw size={16} /> Scan another code</>}
         </button>
       )}
 

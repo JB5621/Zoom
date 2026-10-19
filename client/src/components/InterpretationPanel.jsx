@@ -2,7 +2,7 @@
 // InterpretationPanel.jsx — fixed, all imports at top
 // ============================================================
 import React, { useState, useEffect } from "react";
-import { Globe, Volume2, Trash2, Copy, Check } from "./icons";
+import { Globe, Volume2, Trash2, Copy, Check, Plus, Headphones, Settings } from "./icons";
 
 const LANGUAGES = [
   "English","Spanish","French","German","Portuguese","Italian",
@@ -113,7 +113,8 @@ function CreateChannelForm({ onCreate }) {
           fontWeight:600,fontSize:"clamp(0.75rem, 2vw, 0.85rem)",
           whiteSpace:"nowrap",cursor:(!src||!tgt||src===tgt)?"not-allowed":"pointer",
           opacity:(!src||!tgt||src===tgt)?0.5:1,minHeight:"44px",minWidth:"44px",
-        }}>Create</button>
+          display:"inline-flex",alignItems:"center",gap:"6px",
+        }}><Plus size={16} /> Create</button>
       </div>
     </div>
   );
@@ -305,7 +306,7 @@ export default function InterpretationPanel({
       {isAdmin && (
         <div style={{ display:"flex",gap:"4px",padding:"12px 24px 0",
           borderBottom:"1px solid var(--border)" }}>
-          {[{id:"listen",label:"Listen"},{id:"manage",label:"Manage"}].map(t => (
+          {[{id:"listen",label:"Listen",Icon:Headphones},{id:"manage",label:"Manage",Icon:Settings}].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               padding:"8px 18px",
               background:tab===t.id?"var(--accent-soft)":"transparent",
@@ -313,8 +314,8 @@ export default function InterpretationPanel({
               borderBottom:`2px solid ${tab===t.id?"var(--accent)":"transparent"}`,
               color:tab===t.id?"var(--accent-text)":"var(--text-2)",
               cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:"0.85rem",
-              borderRadius:"8px 8px 0 0",
-            }}>{t.label}</button>
+              borderRadius:"8px 8px 0 0",display:"inline-flex",alignItems:"center",gap:"6px",
+            }}><t.Icon size={15} /> {t.label}</button>
           ))}
         </div>
       )}

@@ -12,6 +12,8 @@ const compression  = require("compression");
 const { v4: uuidv4 } = require("uuid");
 const path         = require("path");
 const sfu          = require("./sfu");
+const { initMeeting, meetingState, registerMeetingFeatures } = require("./meetingFeatures");
+const { scheduleFields, createScheduleStore } = require("./schedules");
 
 const app = express();
 app.use(compression());
@@ -120,6 +122,7 @@ const roomPasswordLimiter = rateLimit({
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
 const usersDbPath = path.join(dataDir, "users.json");
 const sessionsDbPath = path.join(dataDir, "sessions.json");
+const schedules = createScheduleStore(dataDir);
 
 function ensureJsonFile(filePath, fallback) {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -312,7 +315,7 @@ app.post("/api/admin/logout", (req, res) => {
 app.get("/api/admin/state", (req, res) => {
   res.json({ creationRequests: [...roomCreationRequests.values()]
     .filter(request => request.state === "pending")
-    .map(request => ({ id: request.id, createdAt: request.createdAt, user: sanitizeUser(users.find(user => user.id === request.userId)), hasPassword: !!request.passwordHash })),
+    .map(request => ({ id: request.id, createdAt: request.createdAt, user: sanitizeUser(users.find(user => user.id === request.userId)), hasPassword: !!request.passwordHash, schedule: request.schedule || null })),
     users: users.map(sanitizeUser), rooms: [...rooms.values()].map(room => ({
     id: room.id, createdAt: room.createdAt,
     creator: sanitizeUser(users.find(u => u.id === room.creatorId)),
@@ -387,18 +390,15 @@ app.delete("/api/admin/rooms/:id/users/:userId", (req, res) => {
   removeConnectedUser(req.params.userId, room.id);
   res.json({ ok: true });
 });
-function admit(socket, room, role) {
+function admit(socket, room) {
   const user = getUserFromToken(socket.handshake.auth?.token);
   if (!user) { socket.emit("join-rejected"); return false; }
   socket.accountId = user.id;
   if (socket.data.roomId) return false;
   if (room.denied.has(user.id)) { socket.emit("join-rejected"); return false; }
-  if (!room.approved.has(user.id)) {
-    room.pending.set(user.id, { userId: user.id, role });
-    socket.pendingRoomId = room.id;
-    socket.emit("join-pending");
-    return false;
-  }
+  if (room.assignedUsers && !room.assignedUsers.has(user.id)) { socket.emit("join-error", { code: "not-assigned", message: "You have not been assigned to this breakout room." }); return false; }
+  if (room.locked && user.id !== room.creatorId && !room.returningUsers?.has(user.id)) { socket.emit("join-error", { code: "locked", message: "The host has locked this meeting." }); return false; }
+  room.returningUsers ??= new Set(); room.returningUsers.add(user.id);
   socket.pendingRoomId = null;
   return true;
 }
@@ -503,9 +503,10 @@ function broadcastInterpretation(roomId) {
  * away — `getRoom` returning undefined is what makes every other
  * handler a no-op for this room from here on.
  */
-function endRoom(room) {
+function endRoom(room, { silent = false } = {}) {
+  for (const child of room.breakouts || []) { const r = getRoom(child.id); if (r) endRoom(r); }
   const roomId = room.id;
-  io.to(roomId).emit("room-ended", { reason: "host-ended" });
+  if (!silent) io.to(roomId).emit("room-ended", { reason: "host-ended" });
   rooms.delete(roomId);
   for (const socket of io.sockets.sockets.values()) {
     if (socket.pendingRoomId === roomId) { socket.emit("room-ended", { reason: "admin-ended" }); socket.pendingRoomId = null; }
@@ -552,6 +553,7 @@ function createMeeting(req, res, passwordRecord) {
     id: roomId,
     creatorId: req.authUser.id,
     approved: new Set([req.authUser.id]), pending: new Map(), denied: new Set(),
+    title: passwordRecord?.schedule?.title || req.body?.title || "",
     createdAt: new Date(),
     adminId: null,
     participants: new Map(),   // role=participant
@@ -561,6 +563,7 @@ function createMeeting(req, res, passwordRecord) {
     passwordSalt: passwordRecord ? passwordRecord.passwordSalt : passwordSalt,
     passwordHash: passwordRecord ? passwordRecord.passwordHash : (rawPassword ? hashPassword(rawPassword, passwordSalt) : null),
   });
+  initMeeting(rooms.get(roomId));
   // The creator gets a pass straight away so they are not asked for the
   // password they just chose.
   res.json({
@@ -575,8 +578,13 @@ app.post(["/api/room-requests", "/api/rooms"], requireAuth, roomLimiter, (req, r
   const password = typeof req.body?.password === "string" ? req.body.password.trim() : "";
   if (password && password.length < 4) return res.status(400).json({ error: "Room password must be at least 4 characters." });
   const existing = [...roomCreationRequests.values()].find(request => request.userId === req.authUser.id && request.state === "pending");
-  if (existing) return res.status(202).json({ requestId: existing.id, state: existing.state });
-  const request = { id: uuidv4(), userId: req.authUser.id, state: "pending", createdAt: Date.now(),
+  if (existing) {
+    if (!!existing.schedule !== !!req.body?.scheduledAt) return res.status(409).json({ error: "You already have a meeting request waiting for administrator approval." });
+    return res.status(202).json({ requestId: existing.id, state: existing.state });
+  }
+  let schedule;
+  try { schedule = scheduleFields(req.body); } catch (err) { return res.status(400).json({ error: err.message }); }
+  const request = { schedule, id: uuidv4(), userId: req.authUser.id, state: "pending", createdAt: Date.now(),
     ...(password ? createPasswordRecord(password) : { passwordSalt: null, passwordHash: null }) };
   roomCreationRequests.set(request.id, request);
   res.status(202).json({ requestId: request.id, state: request.state });
@@ -584,10 +592,10 @@ app.post(["/api/room-requests", "/api/rooms"], requireAuth, roomLimiter, (req, r
 app.get("/api/room-requests/:id", requireAuth, (req, res) => {
   const request = roomCreationRequests.get(req.params.id);
   if (!request || request.userId !== req.authUser.id) return res.status(404).json({ error: "Room request not found. Please submit a new request." });
-  if (request.state === "approved" && !rooms.has(request.result.roomId)) return res.status(410).json({ error: "The approved room has already closed. Please request a new room." });
+  if (request.state === "approved" && !request.result.meetingId && !rooms.has(request.result.roomId)) return res.status(410).json({ error: "The approved room has already closed. Please request a new room." });
   res.json({ requestId: request.id, state: request.state,
-    ...(request.state === "approved" ? { roomId: request.result.roomId, hasPassword: request.result.hasPassword,
-      pass: request.result.hasPassword ? issueRoomPass(request.result.roomId) : null } : {}) });
+    ...(request.state === "approved" ? { meetingId: request.result.meetingId || null, roomId: request.result.roomId, hasPassword: request.result.hasPassword,
+      pass: request.result.hasPassword && rooms.has(request.result.roomId) ? issueRoomPass(request.result.roomId) : null } : {}) });
 });
 app.post("/api/admin/room-requests/:id/decision", (req, res) => {
   const request = roomCreationRequests.get(req.params.id);
@@ -599,6 +607,11 @@ app.post("/api/admin/room-requests/:id/decision", (req, res) => {
   if (!req.body.approve) { request.state = "rejected"; return res.json({ ok: true }); }
   if (owner.canCreateRooms === false) return res.status(403).json({ error: "Room creation requests are disabled for this user. Enable permission first or reject this request." });
   createMeeting({ authUser: owner, body: {} }, { json(result) { request.result = result; } }, request);
+  if (request.schedule) {
+    const meeting = schedules.add(owner.id, request.schedule);
+    request.result.meetingId = meeting.id;
+    endRoom(rooms.get(request.result.roomId));
+  }
   request.state = "approved";
   res.json({ ok: true, roomId: request.result.roomId });
 });
@@ -607,6 +620,34 @@ app.post("/api/admin/rooms", (req, res) => {
   if (!owner) return res.status(400).json({ error: "Select a room creator." });
   req.authUser = owner;
   createMeeting(req, res);
+});
+
+// Scheduled links persist across restarts; only the organizer starts each session.
+app.get("/api/meetings", requireAuth, (req, res) => res.json({ meetings: schedules.list(req.authUser.id) }));
+app.get("/api/meetings/:id", requireAuth, (req, res) => {
+  const meeting = schedules.get(req.params.id);
+  if (!meeting || !users.some(u => u.id === meeting.creatorId)) return res.status(404).json({ error: "Meeting not found." });
+  res.json({ meeting, isOrganizer: meeting.creatorId === req.authUser.id });
+});
+app.post("/api/meetings/:id/join", requireAuth, (req, res) => {
+  const meeting = schedules.get(req.params.id);
+  if (!meeting || !users.some(u => u.id === meeting.creatorId)) return res.status(404).json({ error: "Meeting not found." });
+  let room = [...rooms.values()].find(r => r.scheduleId === meeting.id);
+  if (!room) {
+    if (meeting.creatorId !== req.authUser.id) return res.status(409).json({ error: "Waiting for the organizer to start this meeting." });
+    const owner = users.find(u => u.id === meeting.creatorId);
+    if (owner.canCreateRooms === false) return res.status(403).json({ error: "Room creation is disabled for this account." });
+    let result;
+    createMeeting({ authUser: owner, body: { title: meeting.title } }, { json: value => { result = value; } });
+    room = getRoom(result.roomId); room.scheduleId = meeting.id;
+  }
+  res.json({ roomId: room.id });
+});
+app.delete("/api/meetings/:id", requireAuth, (req, res) => {
+  const meeting = schedules.get(req.params.id);
+  if (!meeting || meeting.creatorId !== req.authUser.id) return res.status(404).json({ error: "Meeting not found." });
+  for (const room of rooms.values()) if (room.scheduleId === meeting.id) endRoom(room);
+  schedules.remove(meeting.id); res.json({ ok: true });
 });
 
 // Constant-time comparison; returns true when the room has no password set.
@@ -679,6 +720,12 @@ app.get("/api/interpreter-token/:token", (req, res) => {
 // ── Socket.io ─────────────────────────────────────────────────
 io.on("connection", (socket) => {
   console.log(`[+] ${socket.id}`);
+  // Normalize absent/null event bodies before destructuring legacy handlers.
+  socket.use((packet, next) => {
+    if (packet.length < 2 || packet[1] == null) packet[1] = {};
+    next();
+  });
+  registerMeetingFeatures(io, socket, { getRoom, rooms, endRoom, sfu });
 
   // ── JOIN (participant) ─────────────────────────────────────
   socket.on("join-room", ({ roomId, userName, pass }) => {
@@ -697,13 +744,13 @@ io.on("connection", (socket) => {
 
     const room = rooms.get(id);
     if (!room) { socket.emit("join-error", { code: "not-found", message: "Room no longer exists." }); return; }
-    if (!admit(socket, room, "participant")) return;
-    if (!room.adminId) room.adminId = socket.id;
+    if (!admit(socket, room)) return;
+    if (!room.adminId || room.creatorId === socket.accountId) room.adminId = socket.id;
 
     const user = {
       socketId: socket.id,
       userId: socket.accountId,
-      userName: userName || `Guest-${socket.id.slice(0,4)}`,
+      userName: (typeof userName === "string" && userName.trim().slice(0, 80)) || `Guest-${socket.id.slice(0,4)}`,
       roomId: id, isMuted: false, isVideoOff: false,
       role: "participant",
     };
@@ -733,6 +780,9 @@ io.on("connection", (socket) => {
     }
 
     // Send current interpretation state
+    socket.emit("chat-history", room.chatHistory || []);
+    io.to(id).emit("meeting-state", meetingState(room));
+    if (room.presenterId) socket.emit("presentation-started", { socketId: room.presenterId });
     broadcastInterpretation(id);
     console.log(`[JOIN] ${user.userName} → ${id} (admin: ${room.adminId})`);
   });
@@ -757,8 +807,8 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (!admit(socket, room, "interpreter")) return;
-    const interpreterName = userName || `Interpreter (${channel.targetLang})`;
+    if (!admit(socket, room)) return;
+    const interpreterName = (typeof userName === "string" && userName.trim().slice(0, 80)) || `Interpreter (${channel.targetLang})`;
     channel.interpreterSocketId = socket.id;
     channel.interpreterName = interpreterName;
     channel.active = true;
@@ -801,6 +851,7 @@ io.on("connection", (socket) => {
       channelName: channel.name,
     });
 
+    io.to(entry.roomId).emit("meeting-state", meetingState(room));
     broadcastInterpretation(entry.roomId);
     console.log(`[INTERP] ${interpreterName} joined channel "${channel.name}" in ${entry.roomId}`);
   });
@@ -816,7 +867,8 @@ io.on("connection", (socket) => {
     const room = getRoom(socket.data?.roomId);
     if (!room) return;
     const user = room.participants.get(socket.id) || room.interpreters.get(socket.id);
-    if (user) user.isMuted = isMuted;
+    if (user) user.isMuted = !!isMuted;
+    io.to(room.id).emit("meeting-state", meetingState(room));
     socket.to(socket.data.roomId).emit("user-mute-changed", { socketId: socket.id, isMuted });
   });
 
@@ -824,34 +876,17 @@ io.on("connection", (socket) => {
     const room = getRoom(socket.data?.roomId);
     if (!room) return;
     const user = room.participants.get(socket.id) || room.interpreters.get(socket.id);
-    if (user) user.isVideoOff = isVideoOff;
+    if (user) user.isVideoOff = !!isVideoOff;
+    io.to(room.id).emit("meeting-state", meetingState(room));
     socket.to(socket.data.roomId).emit("user-video-changed", { socketId: socket.id, isVideoOff });
   });
 
-  // ── Chat ───────────────────────────────────────────────────
-  socket.on("send-message", ({ message }) => {
-    const roomId = socket.data?.roomId;
-    if (!roomId) return;
-    io.to(roomId).emit("new-message", {
-      id: uuidv4(), from: socket.id,
-      userName: socket.data.userName, message,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  // ── Presentation ───────────────────────────────────────────
-  socket.on("screen-share-started", () => {
-    const { roomId } = socket.data;
-    const room = getRoom(roomId);
-    if (room) room.presenterId = socket.id;
-    socket.to(roomId).emit("presentation-started", { socketId: socket.id, userName: socket.data.userName });
-  });
-
+  // Screen share starts through the acknowledged, permission-checked request.
   socket.on("screen-share-stopped", () => {
-    const { roomId } = socket.data;
-    const room = getRoom(roomId);
-    if (room) room.presenterId = null;
-    socket.to(roomId).emit("presentation-stopped", { socketId: socket.id });
+    const room = getRoom(socket.data?.roomId);
+    if (!room || room.presenterId !== socket.id) return;
+    room.presenterId = null;
+    io.to(room.id).emit("presentation-stopped", { socketId: socket.id });
   });
 
   // ── ADMIN: Create interpretation channel ───────────────────
@@ -898,7 +933,9 @@ io.on("connection", (socket) => {
     if (ch) {
       interpreterTokens.delete(ch.token);
       if (ch.interpreterSocketId) {
-        io.to(ch.interpreterSocketId).emit("channel-deleted");
+        const interpreter = io.sockets.sockets.get(ch.interpreterSocketId);
+        interpreter?.emit("channel-deleted");
+        interpreter?.disconnect(true);
       }
     }
     room.interpretationChannels = room.interpretationChannels.filter(c => c.id !== channelId);
@@ -958,7 +995,9 @@ io.on("connection", (socket) => {
         if (room.presenterId === socket.id) room.presenterId = null;
       }
 
-      if (room.participants.size === 0 && room.interpreters.size === 0) {
+      if (room.spotlightId === socket.id) room.spotlightId = null;
+      io.to(roomId).emit("meeting-state", meetingState(room));
+      if (room.participants.size === 0 && room.interpreters.size === 0 && !room.parentRoomId) {
         setTimeout(() => {
           const r = getRoom(roomId);
           if (r && r.participants.size === 0 && r.interpreters.size === 0) {
@@ -993,6 +1032,18 @@ server.on("error", (err) => {
   }
   throw err;
 });
+
+// mediasoup listens for SIGINT/SIGTERM to stop its workers, and any listener
+// cancels Node's default exit — so without this, Ctrl-C, `docker stop` and
+// systemd would hang until force-killed.
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, () => {
+    console.log(`\n[${signal}] shutting down`);
+    try { saveSessions(); } catch (err) { console.error("[SHUTDOWN] could not save sessions:", err.message); }
+    io.close();
+    setImmediate(() => process.exit(0));
+  });
+}
 
 // The mediasoup workers are separate processes and take a moment to come
 // up. Listening first would mean the first person to join races them and

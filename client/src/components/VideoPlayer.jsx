@@ -1,19 +1,40 @@
 // ============================================================
 // VideoPlayer.jsx — video tile with optional admin crown badge
 // ============================================================
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useMemo } from "react";
 
-function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, peerId, style, speakerId, audioMuted }) {
+// A media element does not reliably mix multiple audio tracks across browsers.
+// Keep microphone audio on the video and render each additional track separately.
+function ExtraAudio({ track, peerId, muted, speakerId }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    el.srcObject = new MediaStream([track]);
+    el.play().catch(() => {});
+    return () => { el.srcObject = null; };
+  }, [track]);
+  useEffect(() => {
+    ref.current?.setSinkId?.(speakerId || '').catch(() => {});
+  }, [speakerId]);
+  return <audio ref={ref} autoPlay muted={muted} data-peer-id={peerId} />;
+}
+
+function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, peerId, style, speakerId, audioMuted, presenting }) {
   const videoRef = useRef(null);
+  const media = useMemo(() => {
+    if (!stream) return { video: null, extra: [] };
+    const [first, ...extra] = stream.getAudioTracks();
+    return { video: new MediaStream([...stream.getVideoTracks(), ...(first ? [first] : [])]), extra };
+  }, [stream]);
 
   useEffect(() => {
-    if (videoRef.current && stream) videoRef.current.srcObject = stream;
-  }, [stream]);
+    if (videoRef.current) { videoRef.current.srcObject = media.video; if (media.video) videoRef.current.play().catch(() => {}); }
+  }, [media]);
 
   // Apply speaker output to this video element
   useEffect(() => {
-    if (videoRef.current && speakerId && videoRef.current.setSinkId) {
-      videoRef.current.setSinkId(speakerId).catch(e => 
+    if (videoRef.current && videoRef.current.setSinkId) {
+      videoRef.current.setSinkId(speakerId || "").catch(e =>
         console.warn("setSinkId not supported or failed:", e)
       );
     }
@@ -37,11 +58,13 @@ function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, pee
         muted={isLocal || !!audioMuted}
         data-peer-id={!isLocal && peerId ? peerId : undefined}
         style={{
-          width:"100%", height:"100%", objectFit:"cover",
+          width:"100%", height:"100%", objectFit:presenting ? "contain" : "cover",
           display: isVideoOff ? "none" : "block",
-          transform: isLocal ? "scaleX(-1)" : "none",
+          transform: isLocal && !presenting ? "scaleX(-1)" : "none",
         }}
       />
+
+      {!isLocal && media.extra.map(track => <ExtraAudio key={track.id} track={track} peerId={peerId} muted={!!audioMuted} speakerId={speakerId} />)}
 
       {/* Avatar when video is off */}
       {isVideoOff && (
@@ -91,7 +114,7 @@ function VideoPlayer({ stream, label, isMuted, isVideoOff, isLocal, isAdmin, pee
         {isMuted && (
           <span style={{
             marginLeft:"auto", background:"var(--danger)", borderRadius:"clamp(4px, 1vw, 6px)",
-            padding:"clamp(1px, 0.5vw, 2px) clamp(4px, 1vw, 7px)", fontSize:"clamp(0.6rem, 1.5vw, 0.7rem)", 
+            padding:"clamp(1px, 0.5vw, 2px) clamp(4px, 1vw, 7px)", fontSize:"clamp(0.6rem, 1.5vw, 0.7rem)",
             color:"var(--on-accent)", fontWeight:600, flexShrink:0,
           }}>MUTED</span>
         )}

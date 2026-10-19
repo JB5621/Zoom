@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiUrl } from "../lib/roomAccess";
 import ThemeToggle from "./ThemeToggle";
+import { LogOut, LogIn, Video, Users, RefreshCw, Check, X, Plus, Trash2, UserMinus, UserPlus } from "./icons";
 import "./admin.css";
 
 export default function Admin() {
@@ -70,27 +71,27 @@ export default function Admin() {
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
-  const pending = (state?.rooms.reduce((sum, room) => sum + room.pending.length, 0) || 0) + (state?.creationRequests?.length || 0);
+  const pending = state?.creationRequests?.length || 0;
   return <main className="admin-page">
     <ThemeToggle />
     <header><div><span className="admin-eyebrow">OGUZ MEETING</span><h1>Admin panel</h1><p>Manage people, rooms, and meeting access.</p></div>
-      {token && <button disabled={busy} onClick={async () => {
+      {token && <button className="icon-btn" disabled={busy} onClick={async () => {
         try { await request("/logout", "POST"); } catch { /* Clear local credentials even if offline. */ }
         sessionStorage.removeItem("oguz_admin"); setToken(""); setState(null);
-      }}>Log out</button>}
+      }}><LogOut size={16} /> Log out</button>}
     </header>
     {error && <p className="admin-error" role="alert">{error}</p>}
     {!token ? <form className="admin-card admin-login" onSubmit={login}>
       <h2>Administrator sign in</h2>
       <label>Username<input name="username" autoComplete="username" required /></label>
       <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
-      <button className="primary" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+      <button className="primary icon-btn" disabled={busy}>{busy ? "Signing in…" : <><LogIn size={16} /> Sign in</>}</button>
     </form> : !state ? <p>Loading admin panel…</p> : <>
       <div className="admin-stats"><div><strong>{state.users.length}</strong>Users</div><div><strong>{state.rooms.length}</strong>Rooms</div><div><strong>{pending}</strong>Waiting for approval</div></div>
-      <nav aria-label="Admin sections"><button className={tab === "rooms" ? "primary" : ""} onClick={() => setTab("rooms")}>Rooms & approvals</button><button className={tab === "users" ? "primary" : ""} onClick={() => setTab("users")}>Users & permissions</button></nav>
+      <nav aria-label="Admin sections"><button className={`icon-btn ${tab === "rooms" ? "primary" : ""}`} onClick={() => setTab("rooms")}><Video size={16} /> Rooms & approvals</button><button className={`icon-btn ${tab === "users" ? "primary" : ""}`} onClick={() => setTab("users")}><Users size={16} /> Users & permissions</button></nav>
       <section className="admin-card admin-request-alert" aria-label="Room creation requests">
         <div className="admin-row"><h2>Room creation requests ({state.creationRequests?.length || 0})</h2>
-          <button disabled={busy} onClick={refreshRequests}>Refresh requests</button>
+          <button className="icon-btn" disabled={busy} onClick={refreshRequests}><RefreshCw size={16} /> Refresh requests</button>
         </div>
         <p>Click Accept request to create the user's room, or Reject request to say no.</p>
         {notice && <p className="admin-request-notice" role="status">{notice}</p>}
@@ -98,10 +99,10 @@ export default function Admin() {
           ? <p role="alert">Restart the backend server to enable room creation requests, then refresh this page.</p>
           : !state.creationRequests.length && <p role="status">No room requests waiting. When a user clicks Request New Meeting, their request and Accept / Reject buttons will appear here automatically.</p>}
         {(state.creationRequests || []).map(request => <div className="admin-row admin-person" key={request.id}>
-          <div><b>{request.user?.name}</b> wants to create a room<p>{request.user?.email} · {new Date(request.createdAt).toLocaleString()}{request.hasPassword ? " · Password protected" : ""}</p></div>
+          <div><b>{request.user?.name}</b> wants to create a room<p>{request.user?.email} · {new Date(request.createdAt).toLocaleString()}{request.hasPassword ? " · Password protected" : ""}</p>{request.schedule && <p><strong>{request.schedule.title}</strong> · {new Date(request.schedule.scheduledAt).toLocaleString()} · {request.schedule.duration} min{request.schedule.recurring ? " · Weekly" : ""}</p>}</div>
           <div className="admin-actions">
-            <button className="primary" disabled={busy} onClick={() => decideRoomRequest(request, true)}>Accept request</button>
-            <button className="danger" disabled={busy} onClick={() => decideRoomRequest(request, false)}>Reject request</button>
+            <button className="primary icon-btn" disabled={busy} onClick={() => decideRoomRequest(request, true)}><Check size={16} /> Accept request</button>
+            <button className="danger icon-btn" disabled={busy} onClick={() => decideRoomRequest(request, false)}><X size={16} /> Reject request</button>
           </div>
         </div>)}
       </section>
@@ -112,22 +113,16 @@ export default function Admin() {
         }}><h2>Create room</h2><div className="admin-fields">
           <label>Room creator<select name="creatorId" required defaultValue=""><option value="" disabled>Select user</option>{state.users.filter(user => user.canCreateRooms).map(user => <option key={user.id} value={user.id}>{user.name} ({user.email})</option>)}</select></label>
           <label>Room password (optional)<input name="password" type="password" minLength={4} /></label>
-        </div><button className="primary" disabled={busy}>Create room</button></form>
-        <p>Room creators join automatically. Other participants and interpreters need your approval.</p>
+        </div><button className="primary icon-btn" disabled={busy}><Plus size={16} /> Create room</button></form>
+        <p>Signed-in participants and invited interpreters join automatically. Protected rooms still require a password.</p>
         {!state.rooms.length && <section className="admin-card">No active rooms. Allowed users can create rooms from their dashboard.</section>}
         {state.rooms.map(room => <section className="admin-card" key={room.id}>
           <div className="admin-row"><div><h2>Room {room.id}</h2><p>Created by {room.creator ? `${room.creator.name} (${room.creator.email})` : "Deleted user"} · {new Date(room.createdAt).toLocaleString()}</p></div>
-            <button className="danger" disabled={busy} onClick={() => window.confirm(`Delete room ${room.id} and end the meeting for everyone?`) && act(`/rooms/${room.id}`, "DELETE")}>Delete room</button></div>
-          <h3>Waiting for approval ({room.pending.length})</h3>
-          {!room.pending.length && <p>No pending requests.</p>}
-          {room.pending.map(entry => <div className="admin-row admin-person" key={entry.userId}><span><b>{entry.user?.name}</b> · {entry.user?.email} · {entry.role}</span><div className="admin-actions">
-            <button className="primary" disabled={busy} onClick={() => act(`/rooms/${room.id}/approval`, "POST", { userId: entry.userId, approve: true })}>Approve</button>
-            <button disabled={busy} onClick={() => act(`/rooms/${room.id}/approval`, "POST", { userId: entry.userId, approve: false })}>Reject</button>
-          </div></div>)}
+            <button className="danger icon-btn" disabled={busy} onClick={() => window.confirm(`Delete room ${room.id} and end the meeting for everyone?`) && act(`/rooms/${room.id}`, "DELETE")}><Trash2 size={16} /> Delete room</button></div>
           <h3>Connected ({room.participants.length})</h3>
           {!room.participants.length && <p>No connected users.</p>}
           {room.participants.map(person => <div className="admin-row admin-person" key={person.socketId}><span><b>{person.userName}</b> · {state.users.find(user => user.id === person.userId)?.email} · {person.role}</span>
-            <button disabled={busy} onClick={() => act(`/rooms/${room.id}/users/${person.userId}`, "DELETE")}>Remove from room</button></div>)}
+            <button className="icon-btn" disabled={busy} onClick={() => act(`/rooms/${room.id}/users/${person.userId}`, "DELETE")}><UserMinus size={16} /> Remove from room</button></div>)}
         </section>)}
       </> : <>
         <form className="admin-card" onSubmit={async event => {
@@ -137,11 +132,11 @@ export default function Admin() {
           <label>Name<input name="name" required minLength={2} /></label>
           <label>Email<input name="email" type="email" required /></label>
           <label>Password<input name="password" type="password" autoComplete="new-password" minLength={6} required /></label>
-        </div><label className="admin-check"><input type="checkbox" name="canCreateRooms" defaultChecked />Allow room creation requests</label><button className="primary" disabled={busy}>Add user</button></form>
+        </div><label className="admin-check"><input type="checkbox" name="canCreateRooms" defaultChecked />Allow room creation requests</label><button className="primary icon-btn" disabled={busy}><UserPlus size={16} /> Add user</button></form>
         <section className="admin-card"><h2>Users</h2>{!state.users.length && <p>No users yet.</p>}{state.users.map(user => <div className="admin-row admin-person" key={user.id}>
           <div><b>{user.name}</b><p>{user.email}</p></div><div className="admin-actions">
             <label className="admin-check"><input type="checkbox" checked={user.canCreateRooms} disabled={busy} onChange={event => act(`/users/${user.id}`, "PATCH", { canCreateRooms: event.target.checked })} />Can request rooms</label>
-            <button className="danger" disabled={busy} onClick={() => window.confirm(`Delete ${user.name}'s account and disconnect their sessions?`) && act(`/users/${user.id}`, "DELETE")}>Delete user</button>
+            <button className="danger icon-btn" disabled={busy} onClick={() => window.confirm(`Delete ${user.name}'s account and disconnect their sessions?`) && act(`/users/${user.id}`, "DELETE")}><Trash2 size={16} /> Delete user</button>
           </div></div>)}</section>
       </>}
     </>}

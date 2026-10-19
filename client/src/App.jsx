@@ -1,12 +1,14 @@
 import { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "./context/AuthState";
 import Login from "./components/Login";
 import RequireAuth from "./components/RequireAuth";
-import { LoadingScreen } from "./components/pageStyles";
+
+import { LoadingScreen } from "./components/LoadingScreen";
 
 // Code-split everything past the login screen — a first-time visitor
 // only needs to download the auth form, not WebRTC/recording/interpretation code.
+const ScheduledMeetingJoin = lazy(() => import("./components/ScheduledMeetings").then(m => ({ default: m.ScheduledMeetingJoin })));
 const Admin = lazy(() => import("./components/Admin"));
 const Register = lazy(() => import("./components/Register"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
@@ -30,6 +32,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+          <Route path="/meeting/:id" element={<RequireAuth><ScheduledMeetingJoin /></RequireAuth>} />
           <Route path="/room/:roomId" element={<RequireAuth><Room /></RequireAuth>} />
           <Route path="/interpreter" element={<RequireAuth><InterpreterJoin /></RequireAuth>} />
           <Route path="/interpreter/:token" element={<RequireAuth><InterpreterRoom /></RequireAuth>} />

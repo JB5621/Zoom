@@ -27,7 +27,7 @@ export function useInterpretation(channels, peers) {
       const pid = el.getAttribute("data-peer-id");
       const isInterpreter = interpreterIds.has(pid);
       
-      if (!channelId) {
+      if (!channelId || !ch?.active) {
         // Original Audio mode: play original participants, mute all interpreters
         el.volume = isInterpreter ? 0 : FULL;
       } else {
@@ -38,7 +38,14 @@ export function useInterpretation(channels, peers) {
   }, []);
 
   // Re-apply whenever peers change (new people join)
-  useEffect(() => { applyRouting(selectedChannelId); }, [selectedChannelId, applyRouting, peers]);
+  useEffect(() => { applyRouting(selectedChannelId); }, [selectedChannelId, applyRouting, peers, channels]);
+
+  // Pinning, speaker changes and gallery switches can mount fresh media elements.
+  useEffect(() => {
+    const observer = new MutationObserver(() => applyRouting(selectedChannelId));
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [selectedChannelId, applyRouting]);
 
   const selectChannel = useCallback((channelId) => {
     setSelectedChannelId(channelId);

@@ -2,10 +2,12 @@
 // Login.jsx — sign in page
 // ============================================================
 import React, { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import S, { LoadingScreen, focusInput, blurInput } from "./pageStyles";
+import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthState";
+import S, { focusInput, blurInput } from "./pageStyles";
+import { LoadingScreen } from "./LoadingScreen";
 import ThemeToggle from "./ThemeToggle";
+import { LogIn } from "./icons";
 
 export default function Login() {
   const { user, loading: authLoading, submitting, login } = useAuth();
@@ -13,9 +15,11 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const destination = typeof state?.from === "string" && state.from.startsWith("/") && !state.from.startsWith("//") ? state.from : "/dashboard";
 
   if (authLoading) return <LoadingScreen />;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to={destination} replace />;
 
   async function handleSubmit() {
     setAuthError("");
@@ -26,7 +30,7 @@ export default function Login() {
 
     try {
       await login({ email: trimmedEmail, password });
-      navigate("/dashboard");
+      navigate(destination, { replace: true });
     } catch (err) {
       setAuthError(err.message || "Could not sign you in.");
     }
@@ -70,8 +74,8 @@ export default function Login() {
           onBlur={blurInput}
         />
 
-        <button style={S.btnPrimary} onClick={handleSubmit} disabled={submitting}>
-          {submitting ? "Working..." : "Sign in"}
+        <button className="icon-btn" style={S.btnPrimary} onClick={handleSubmit} disabled={submitting}>
+          {submitting ? "Working..." : <><LogIn size={16} /> Sign in</>}
         </button>
 
         {authError && <div style={S.error}>{authError}</div>}

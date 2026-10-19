@@ -1,0 +1,23 @@
+.prejoin { min-height:100vh;display:grid;place-items:center;background:var(--bg);padding:24px;color:var(--text-1) }
+.meeting-card { width:min(100%,560px);padding:24px;border:1px solid var(--border);border-radius:16px;background:var(--surface-1);box-shadow:var(--shadow-modal) }
+.meeting-card h1,.meeting-card h2 { margin-top:0 }.meeting-card p { color:var(--text-2);line-height:1.5 }
+.meeting-card label,.meeting-panel label { display:flex;flex-direction:column;gap:6px;margin:12px 0 }
+.meeting-card button,.meeting-panel button,.meeting-tools button,.schedule-list button,.meeting-chat button { padding:9px 12px;min-height:40px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text-1);cursor:pointer;font:inherit }
+.meeting-card button:disabled,.meeting-panel button:disabled { opacity:.5;cursor:wait }
+.meeting-card .primary,.meeting-panel .primary { background:var(--accent);color:white;width:100%;margin-top:16px }
+.meeting-card input,.meeting-card select,.meeting-card textarea,.meeting-panel input,.meeting-panel select,.meeting-panel textarea,.meeting-chat input,.meeting-chat select { padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-1);font:inherit;min-width:0 }
+.preview { width:100%;aspect-ratio:16/9;object-fit:cover;background:#10131b;border-radius:12px;transform:scaleX(-1) }
+.meeting-actions { display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 }.meeting-tools { display:flex;flex-wrap:wrap;gap:6px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface-1) }
+.meeting-tools button[aria-pressed=true] { background:var(--accent);color:white }
+.meeting-panel,.meeting-chat { position:fixed;top:0;right:0;bottom:0;width:min(390px,100vw);z-index:220;background:var(--surface-1);color:var(--text-1);padding:20px;overflow:auto;box-shadow:var(--shadow-modal);border-left:1px solid var(--border) }
+.meeting-panel header,.meeting-chat header { display:flex;justify-content:space-between;align-items:center;gap:12px }.meeting-panel h2,.meeting-chat h2 { margin:0 }
+.participant-row { padding:14px 0;border-bottom:1px solid var(--border) }.participant-row small { color:var(--text-2) }.participant-row .meeting-actions { margin:8px 0 0 }
+.stage-grid { flex:1;min-height:0;overflow:auto;display:grid;gap:12px;padding:16px;padding-bottom:calc(var(--controls-h,120px) + 20px);grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));align-content:center }
+.stage-speaker { flex:1;min-height:0;overflow:auto;padding:16px;padding-bottom:calc(var(--controls-h,120px) + 20px) }.stage-speaker .main-tile { width:100%;height:min(58vh,600px) }.stage-thumbnails { display:flex;gap:10px;margin-top:12px;overflow:auto }.stage-thumbnails>div { flex:0 0 180px }
+.tile-wrap { position:relative;min-width:0 }.tile-actions { position:absolute;top:8px;left:8px;z-index:2;display:flex;gap:5px }.tile-actions button { background:#111b;color:white;border:0;border-radius:6px;padding:5px 9px;cursor:pointer }.tile-wrap.speaking { outline:2px solid var(--success);border-radius:12px }
+.caption-strip { position:fixed;bottom:calc(var(--controls-h,120px) + 12px);left:50%;transform:translateX(-50%);width:min(640px,90vw);z-index:110;background:#000d;color:white;padding:12px 18px;border-radius:10px;pointer-events:none }
+.reaction-pop { position:fixed;right:20px;top:140px;z-index:230;background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:20px }
+.meeting-notice { padding:8px 16px;background:var(--warn-soft);color:var(--text-1);display:flex;justify-content:space-between;gap:8px }
+.meeting-chat { display:flex;flex-direction:column }.chat-log { flex:1;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:16px 0 }.chat-entry { background:var(--surface-2);padding:12px;border-radius:10px;overflow-wrap:anywhere }.chat-entry small { display:block;color:var(--text-2) }.chat-entry p { white-space:pre-wrap;margin:6px 0 }.chat-entry.private { border-left:3px solid var(--accent) }
+.schedule-list { margin-top:24px;color:var(--text-1) }.schedule-item { border:1px solid var(--border);border-radius:10px;padding:14px;margin:12px 0 }.schedule-item p { color:var(--text-2) }
+@media(max-width:600px) { .meeting-tools { flex-wrap:nowrap;overflow:auto;flex-shrink:0 }.meeting-tools button { white-space:nowrap }.stage-grid { grid-template-columns:repeat(2,minmax(0,1fr));padding:8px;padding-bottom:calc(var(--controls-h,180px) + 8px) }.meeting-card { padding:16px } }

@@ -11,7 +11,7 @@
 import React, { useMemo, useState, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useWebRTC } from "../hooks/useWebRTC";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/AuthState";
 import VideoPlayer from "./VideoPlayer";
 import { Mic, MicOff, PhoneOff, Users, Headphones, AlertTriangle, Volume2, VolumeX } from "./icons";
 import ThemeToggle from "./ThemeToggle";
@@ -26,10 +26,10 @@ export default function InterpreterRoom() {
   // Join as interpreter — roomId is derived from token validation,
   // but useWebRTC handles it all via interpreterToken
   const {
-    localStream, peers, interpreterError, joinError, roomEnded,
+    peers, interpreterError, joinError, roomEnded,
     isMuted, toggleMute,
     myChannelInfo, isConnected,
-    leaveRoom, mySocketId,
+    leaveRoom,
   } = useWebRTC("INTERPRETER", userName, token);
 
   const peerList = useMemo(() => Object.entries(peers), [peers]);

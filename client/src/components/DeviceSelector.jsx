@@ -179,7 +179,7 @@ function MicMeter({ stream }) {
   const ctxRef = useRef(null);
 
   useEffect(() => {
-    if (!stream) return;
+    if (!stream?.getAudioTracks().length) return;
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     ctxRef.current = audioCtx;
     const analyser = audioCtx.createAnalyser();

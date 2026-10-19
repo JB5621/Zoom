@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { encodeQR, qrToSvgPath } from "../lib/qr";
 import { roomLink, fetchLanHosts, isLoopbackOrigin } from "../lib/roomAccess";
-import { Copy, Check } from "./icons";
+import { Copy, Check, Link2, QrCode, Hash } from "./icons";
 
 function CopyRow({ label, value, mono = false }) {
   const [copied, setCopied] = useState(false);
@@ -60,9 +60,9 @@ function CopyRow({ label, value, mono = false }) {
 }
 
 const TABS = [
-  { id: "link", label: "Link" },
-  { id: "qr", label: "QR code" },
-  { id: "code", label: "Code" },
+  { id: "link", label: "Link", Icon: Link2 },
+  { id: "qr", label: "QR code", Icon: QrCode },
+  { id: "code", label: "Code", Icon: Hash },
 ];
 
 export default function InvitePanel({ roomId, password, onClose }) {
@@ -146,8 +146,9 @@ export default function InvitePanel({ roomId, password, onClose }) {
                 border: "none", borderBottom: `2px solid ${tab === t.id ? "var(--accent)" : "transparent"}`,
                 color: tab === t.id ? "var(--accent-text)" : "var(--text-2)",
                 cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: "0.85rem",
+                display: "inline-flex", alignItems: "center", gap: "6px",
               }}
-            >{t.label}</button>
+            ><t.Icon size={15} /> {t.label}</button>
           ))}
         </div>
 

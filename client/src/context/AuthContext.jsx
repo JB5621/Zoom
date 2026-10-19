@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+
+import { AuthContext } from "./AuthState";
 
 const TOKEN_KEY = "oguzmeeting_auth_token";
 const LEGACY_TOKEN_KEY = "zoomclone_auth_token";
-const AuthContext = createContext(null);
+
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "").replace(/\/$/, "");
 
@@ -151,12 +153,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 }

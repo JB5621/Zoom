@@ -28,10 +28,15 @@ import { getRoomPass, verifyRoomPassword } from "../lib/roomAccess";
 /** How long to wait on a server acknowledgement before giving up. */
 const ACK_TIMEOUT_MS = 15_000;
 
-export function useWebRTC(roomId, userName, interpreterToken = null) {
+export function useWebRTC(roomId, userName, interpreterToken = null, initialMedia = null) {
   const socketRef        = useRef(null);
   const localStreamRef   = useRef(null);
   const screenStreamRef  = useRef(null);
+  const cameraTrackRef = useRef(null);
+  const micTrackRef = useRef(null);
+  const backgroundRef = useRef(null);
+  const initialRef = useRef(initialMedia);
+  const [background, setBackground] = useState('none');
 
   // ── SFU plumbing ─────────────────────────────────────────────
   const deviceRef        = useRef(null);
@@ -45,16 +50,18 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
   // Producers announced before the receive transport existed. Without
   // this, anyone already speaking when you join is silently skipped.
   const pendingProducers = useRef([]);
+  const consumingRef = useRef(new Set());
   const sfuStateRef      = useRef({ starting: false, ready: false });
 
   const [localStream,     setLocalStream]     = useState(null);
   const [peers,           setPeers]           = useState({});
   const [interpreterIds,  setInterpreterIds]  = useState(new Set());
-  const [isMuted,         setIsMuted]         = useState(false);
-  const [isVideoOff,      setIsVideoOff]      = useState(false);
+  const [isMuted,         setIsMuted]         = useState(initialMedia?.muted || false);
+  const [isVideoOff,      setIsVideoOff]      = useState(initialMedia?.videoOff || false);
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [messages,        setMessages]        = useState([]);
   const [error,           setError]           = useState(null);
+  const [myId, setMyId] = useState(null);
   const [isConnected,     setIsConnected]     = useState(false);
   const [presenterId,     setPresenterId]     = useState(null);
   const [myRole,          setMyRole]          = useState(interpreterToken ? "interpreter" : "participant");
@@ -77,7 +84,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
   const [speakers,       setSpeakers]       = useState([]);
   const [activeCameraId, setActiveCameraId] = useState(null);
   const [activeMicId,    setActiveMicId]    = useState(null);
-  const [activeSpeakerId,setActiveSpeakerId]= useState(null);
+  const [activeSpeakerId,setActiveSpeakerId]= useState(initialMedia?.speaker || null);
 
   const refreshDevices = useCallback(async () => {
     try {
@@ -85,7 +92,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
       setCameras(d.filter(x => x.kind === "videoinput"));
       setMicrophones(d.filter(x => x.kind === "audioinput"));
       setSpeakers(d.filter(x => x.kind === "audiooutput"));
-    } catch(e) {}
+    } catch (error) { console.warn(error.message); }
   }, []);
 
   const updatePeer = useCallback((id, data) =>
@@ -165,6 +172,8 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
       return;
     }
 
+    if (consumingRef.current.has(producerId)) return;
+    consumingRef.current.add(producerId);
     try {
       const params = await request("sfu-consume", {
         transportId: transport.id,
@@ -187,6 +196,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
       // first keyframe is not spent on a page that cannot draw it yet.
       await request("sfu-resume-consumer", { consumerId: consumer.id });
     } catch (err) {
+      consumingRef.current.delete(producerId);
       console.error("[sfu] consume failed:", err.message);
     }
   }, [request, addPeerTrack]);
@@ -246,10 +256,10 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     const stream = localStreamRef.current;
     if (!transport || !stream) return;
 
-    const audioTrack = stream.getAudioTracks()[0];
+    const audioTrack = micTrackRef.current;
     if (audioTrack && !producersRef.current.audio) {
       producersRef.current.audio = await transport.produce({
-        track: audioTrack,
+        track: audioTrack, stopTracks: false,
         codecOptions: AUDIO_CODEC_OPTIONS,
         appData: { source: "mic" },
       });
@@ -258,10 +268,16 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     const videoTrack = stream.getVideoTracks()[0];
     if (videoTrack && !producersRef.current.video) {
       producersRef.current.video = await transport.produce({
-        track: videoTrack,
-        encodings: CAMERA_ENCODINGS,
+        track: videoTrack, stopTracks: false,
+        encodings: screenStreamRef.current ? SCREEN_ENCODINGS : CAMERA_ENCODINGS,
         codecOptions: CAMERA_CODEC_OPTIONS,
-        appData: { source: "camera" },
+        appData: { source: screenStreamRef.current ? "screen" : "camera" },
+      });
+    }
+    const screenAudio = screenStreamRef.current?.getAudioTracks()[0];
+    if (screenAudio && !producersRef.current.screenAudio) {
+      producersRef.current.screenAudio = await transport.produce({
+        track: screenAudio, stopTracks: false, appData: { source: 'screen-audio' },
       });
     }
   }, []);
@@ -288,6 +304,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
 
       await createSendTransport();
       await createRecvTransport();
+      if (screenStreamRef.current) await request("share-request");
       await produceLocalMedia();
 
       // Everyone already sending when we arrived.
@@ -319,10 +336,11 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
       try { consumer.close(); } catch { /* already gone */ }
     }
     consumersRef.current.clear();
+    consumingRef.current.clear();
     peerTracksRef.current.clear();
     pendingProducers.current = [];
 
-    for (const key of ["audio", "video"]) {
+    for (const key of Object.keys(producersRef.current)) {
       try { producersRef.current[key]?.close(); } catch { /* already gone */ }
       producersRef.current[key] = null;
     }
@@ -345,6 +363,8 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
    */
   const teardown = useCallback(() => {
     teardownSfu();
+    backgroundRef.current?.stop();
+    cameraTrackRef.current?.stop();
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     screenStreamRef.current?.getTracks().forEach(t => t.stop());
     socketRef.current?.disconnect();
@@ -360,7 +380,16 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
           ? { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
           : CAMERA_CONSTRAINTS;
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const settings = initialRef.current;
+        const selected = settings ? {
+          audio: settings.hasAudio ? { ...CAMERA_CONSTRAINTS.audio, ...(settings.mic ? { deviceId: { exact: settings.mic } } : {}) } : false,
+          video: settings.hasVideo ? { ...CAMERA_CONSTRAINTS.video, ...(settings.camera ? { deviceId: { exact: settings.camera } } : {}) } : false,
+        } : constraints;
+        const stream = selected.audio || selected.video ? await navigator.mediaDevices.getUserMedia(selected) : new MediaStream();
+        if (settings) {
+          stream.getAudioTracks().forEach(t => { t.enabled = !settings.muted; });
+          stream.getVideoTracks().forEach(t => { t.enabled = !settings.videoOff; });
+        }
         if (!mounted) {
           stream.getTracks().forEach(t => t.stop());
           return;
@@ -369,6 +398,8 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         // Tell the encoder these are faces and speech, not a slideshow.
         setContentHints(stream);
         localStreamRef.current = stream;
+        cameraTrackRef.current = stream.getVideoTracks()[0] || null;
+        micTrackRef.current = stream.getAudioTracks()[0] || null;
         setLocalStream(stream);
         const vt = stream.getVideoTracks()[0];
         const at = stream.getAudioTracks()[0];
@@ -379,6 +410,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
           setActiveMicId(at.getSettings().deviceId);
         }
         await refreshDevices();
+        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return; }
 
         // Use the vite proxy for socket.io or fall back to direct server URL
         const SERVER_URL = import.meta.env.VITE_SERVER_URL || "/";
@@ -393,7 +425,16 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         });
         socketRef.current = socket;
 
+        socket.on("host-muted", () => {
+          const mic = micTrackRef.current;
+          if (mic) mic.enabled = false;
+          producersRef.current.audio?.pause();
+          setIsMuted(true);
+        });
+        socket.on("chat-history", history => setMessages(history));
         socket.on("connect", () => {
+          setError(null);
+          setMyId(socket.id);
           setIsConnected(true);
           if (interpreterToken) {
             socket.emit("join-as-interpreter", { token: interpreterToken, userName });
@@ -421,6 +462,8 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
           // id, so the local halves now point at nothing.
           teardownSfu();
           setPeers({});
+          setInterpreterIds(new Set());
+          setPresenterId(null);
         });
 
         socket.on("connect_error", (err) => {
@@ -436,7 +479,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         socket.on("reconnect_attempt", () => {
         });
 
-        socket.on("reconnect_failed", () => {
+        socket.io.on("reconnect_failed", () => {
           console.error(`[socket.reconnect_failed] Failed to reconnect`);
           setError("Server connection lost and could not reconnect");
         });
@@ -449,6 +492,8 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
           users.forEach(u => {
             updatePeer(u.socketId, { userName: u.userName, isMuted: u.isMuted, isVideoOff: u.isVideoOff, role: u.role||"participant", stream: null });
           });
+          socket.emit('toggle-mute', { isMuted: !micTrackRef.current?.enabled });
+          socket.emit('toggle-video', { isVideoOff: !localStreamRef.current?.getVideoTracks()[0]?.enabled });
           startSfu();
         });
 
@@ -503,7 +548,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         });
 
         socket.on("interpreter-error", ({ message }) => setInterpreterError(message));
-        socket.on("channel-deleted", () => setInterpreterError("This channel was removed by the host."));
+        socket.on("channel-deleted", () => { setInterpreterError("This channel was removed by the host."); teardown(); });
 
         // ── SFU media ────────────────────────────────────────
         socket.on("sfu-new-producer", ({ producerId, socketId }) => {
@@ -526,14 +571,16 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
         // ── Media state ──────────────────────────────────────
         socket.on("user-mute-changed",  ({ socketId, isMuted })    => updatePeer(socketId, { isMuted }));
         socket.on("user-video-changed", ({ socketId, isVideoOff }) => updatePeer(socketId, { isVideoOff }));
-        socket.on("new-message", msg => setMessages(p => [...p, msg]));
+        socket.on("new-message", msg => setMessages(p => [...p.slice(-199), msg]));
 
         // ── Presentation ─────────────────────────────────────
         socket.on("presentation-started", ({ socketId }) => {
-          setPresenterId(socketId); updatePeer(socketId, { isPresenting: true });
+          setPresenterId(socketId);
+          if (socketId !== socket.id) updatePeer(socketId, { isPresenting: true });
         });
         socket.on("presentation-stopped", ({ socketId }) => {
-          setPresenterId(null); updatePeer(socketId, { isPresenting: false });
+          setPresenterId(null);
+          if (socketId !== socket.id) updatePeer(socketId, { isPresenting: false });
         });
 
         // ── Interpretation ───────────────────────────────────
@@ -565,10 +612,10 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     }
 
     init();
-    navigator.mediaDevices.addEventListener("devicechange", refreshDevices);
+    navigator.mediaDevices?.addEventListener("devicechange", refreshDevices);
     return () => {
       mounted = false;
-      navigator.mediaDevices.removeEventListener("devicechange", refreshDevices);
+      navigator.mediaDevices?.removeEventListener("devicechange", refreshDevices);
       teardown();
     };
   }, [roomId, userName, interpreterToken, updatePeer, removePeer, refreshDevices,
@@ -578,36 +625,64 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
   // replaceTrack swaps what a producer is sending without renegotiating,
   // so nobody else sees anything more than the picture changing.
   const switchCamera = useCallback(async deviceId => {
+    if (screenStreamRef.current) return;
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId }, width: 1280, height: 720 } });
-      const t = s.getVideoTracks()[0];
-      setContentHints(new MediaStream([t]));
-      await producersRef.current.video?.replaceTrack({ track: t });
+      const t = s.getVideoTracks()[0]; t.enabled = !isVideoOff;
+      const producer = producersRef.current.video;
+      if (producer) await producer.replaceTrack({ track: t });
+      else if (sendTransportRef.current) producersRef.current.video = await sendTransportRef.current.produce({ track: t, stopTracks: false, encodings: CAMERA_ENCODINGS, appData: { source: 'camera' } });
+      backgroundRef.current?.stop(); backgroundRef.current = null; setBackground('none');
       const old = localStreamRef.current?.getVideoTracks()[0];
       if (old) { old.stop(); localStreamRef.current.removeTrack(old); }
+      cameraTrackRef.current?.stop(); cameraTrackRef.current = t;
       localStreamRef.current.addTrack(t);
       setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
       setActiveCameraId(deviceId);
-    } catch(e) {}
-  }, []);
+    } catch (e) { setError(e.message); }
+  }, [isVideoOff]);
+
+  const changeBackground = useCallback(async (mode, imageFile) => {
+    if (screenStreamRef.current) throw Error('Stop sharing before changing your background.');
+    const raw = cameraTrackRef.current;
+    if (!raw || raw.readyState === 'ended') throw Error('Turn on a camera first.');
+    let effect = null;
+    if (mode !== 'none') {
+      const { createBackground } = await import('../lib/background');
+      effect = await createBackground(raw, mode, imageFile);
+    }
+    const track = effect?.track || raw;
+    // MediaStreamTrack is an imperative browser resource, not React state.
+    // eslint-disable-next-line react-hooks/immutability
+    track.enabled = !isVideoOff;
+    try { await producersRef.current.video?.replaceTrack({ track }); }
+    catch (e) { effect?.stop(); throw e; }
+    backgroundRef.current?.stop(); backgroundRef.current = effect;
+    localStreamRef.current.getVideoTracks().forEach(t => localStreamRef.current.removeTrack(t));
+    localStreamRef.current.addTrack(track);
+    setLocalStream(new MediaStream(localStreamRef.current.getTracks())); setBackground(mode);
+  }, [isVideoOff]);
 
   const switchMicrophone = useCallback(async deviceId => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId }, echoCancellation: true } });
       const t = s.getAudioTracks()[0];
       t.enabled = !isMuted;
-      await producersRef.current.audio?.replaceTrack({ track: t });
-      const old = localStreamRef.current?.getAudioTracks()[0];
+      if (producersRef.current.audio) await producersRef.current.audio.replaceTrack({ track: t });
+      else if (sendTransportRef.current) producersRef.current.audio = await sendTransportRef.current.produce({ track: t, stopTracks: false, appData: { source: 'mic' } });
+      const old = micTrackRef.current;
       if (old) { old.stop(); localStreamRef.current.removeTrack(old); }
       localStreamRef.current.addTrack(t);
+      micTrackRef.current = t;
+      setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
       setActiveMicId(deviceId);
-    } catch(e) {}
+    } catch (error) { console.warn(error.message); }
   }, [isMuted]);
 
   const switchSpeaker = useCallback(id => {
     setActiveSpeakerId(id);
     // Apply speaker to all video elements
-    document.querySelectorAll("video").forEach(video => {
+    document.querySelectorAll("video, audio").forEach(video => {
       if (video.setSinkId) {
         video.setSinkId(id).catch(e => console.warn("setSinkId failed:", e));
       }
@@ -623,7 +698,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
    * is what actually stops the bytes.
    */
   const toggleMute = useCallback(() => {
-    const t = localStreamRef.current?.getAudioTracks()[0];
+    const t = micTrackRef.current;
     if (!t) return;
     t.enabled = !t.enabled;
     const m = !t.enabled;
@@ -642,6 +717,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     if (!t) return;
     t.enabled = !t.enabled;
     const off = !t.enabled;
+    if (cameraTrackRef.current && !screenStreamRef.current) cameraTrackRef.current.enabled = !off;
     setIsVideoOff(off);
 
     const producer = producersRef.current.video;
@@ -659,52 +735,75 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
    * has to resubscribe when a presentation starts.
    */
   const stopPresentation = useCallback(async () => {
-    screenStreamRef.current?.getTracks().forEach(t => t.stop());
+    if (!screenStreamRef.current) return;
+    screenStreamRef.current.getTracks().forEach(t => { t.onended = null; t.stop(); localStreamRef.current?.removeTrack(t); });
+    screenStreamRef.current = null;
+    const audio = producersRef.current.screenAudio;
+    if (audio) { socketRef.current?.emit('sfu-close-producer', { producerId: audio.id }); audio.close(); producersRef.current.screenAudio = null; }
+    const track = backgroundRef.current?.track || cameraTrackRef.current;
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: CAMERA_CONSTRAINTS.video });
-      setContentHints(s);
-      const t = s.getVideoTracks()[0];
-      await producersRef.current.video?.replaceTrack({ track: t });
-      const old = localStreamRef.current?.getVideoTracks()[0];
-      if (old) localStreamRef.current.removeTrack(old);
-      localStreamRef.current.addTrack(t);
-      setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
-    } catch(e) {}
-    setIsSharingScreen(false);
-    socketRef.current?.emit("screen-share-stopped");
-  }, []);
+      if (track?.readyState === 'live') {
+        // eslint-disable-next-line react-hooks/immutability
+        track.enabled = !isVideoOff;
+        await producersRef.current.video?.replaceTrack({ track });
+        if (isVideoOff) producersRef.current.video?.pause(); else producersRef.current.video?.resume();
+        socketRef.current?.emit('sfu-pause-producer', { producerId: producersRef.current.video?.id, paused: isVideoOff });
+      } else if (producersRef.current.video) {
+        socketRef.current?.emit('sfu-close-producer', { producerId: producersRef.current.video.id });
+        producersRef.current.video.close(); producersRef.current.video = null;
+      }
+    } catch (e) { console.warn('Restore camera:', e); }
+    localStreamRef.current?.getVideoTracks().forEach(t => localStreamRef.current.removeTrack(t));
+    if (track?.readyState === 'live') localStreamRef.current?.addTrack(track);
+    setLocalStream(new MediaStream(localStreamRef.current?.getTracks() || []));
+    setIsSharingScreen(false); setPresenterId(null);
+    socketRef.current?.emit('screen-share-stopped');
+    socketRef.current?.emit('toggle-video', { isVideoOff });
+  }, [isVideoOff]);
 
   const startPresentation = useCallback(async captureStream => {
-    screenStreamRef.current = captureStream;
-    setContentHints(captureStream, { screenShare: true });
-    const st = captureStream.getVideoTracks()[0];
-
-    const producer = producersRef.current.video;
-    if (producer) {
-      await producer.replaceTrack({ track: st });
-    } else if (sendTransportRef.current) {
-      // An interpreter has no video producer yet; create one to present.
-      producersRef.current.video = await sendTransportRef.current.produce({
-        track: st,
-        encodings: SCREEN_ENCODINGS,
-        appData: { source: "screen" },
-      });
+    try {
+      await request('share-request');
+      screenStreamRef.current = captureStream;
+      const track = captureStream.getVideoTracks()[0];
+      if (producersRef.current.video) {
+        await producersRef.current.video.replaceTrack({ track });
+        producersRef.current.video.resume();
+        await request('sfu-pause-producer', { producerId: producersRef.current.video.id, paused: false });
+      } else {
+        producersRef.current.video = await sendTransportRef.current.produce({ track, stopTracks: false, encodings: SCREEN_ENCODINGS, appData: { source: 'screen' } });
+      }
+      const audio = captureStream.getAudioTracks()[0];
+      if (audio) {
+        producersRef.current.screenAudio = await sendTransportRef.current.produce({ track: audio, stopTracks: false, appData: { source: 'screen-audio' } });
+        // Include tab audio in the local recording as well as the remote stream.
+        localStreamRef.current.addTrack(audio);
+      }
+      localStreamRef.current.getVideoTracks().forEach(t => localStreamRef.current.removeTrack(t));
+      localStreamRef.current.addTrack(track);
+      setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+      setIsSharingScreen(true); setPresenterId(socketRef.current.id);
+      socketRef.current.emit('toggle-video', { isVideoOff: false });
+      track.onended = () => stopPresentation();
+    } catch (e) {
+      captureStream.getTracks().forEach(t => t.stop());
+      if (screenStreamRef.current === captureStream) await stopPresentation();
+      throw e;
     }
+  }, [request, stopPresentation]);
 
-    const lv = localStreamRef.current?.getVideoTracks()[0];
-    if (lv) localStreamRef.current.removeTrack(lv);
-    localStreamRef.current.addTrack(st);
-    setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
-    setIsSharingScreen(true);
-    socketRef.current?.emit("screen-share-started");
-    st.onended = () => stopPresentation();
-  }, [stopPresentation]);
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.on('stop-sharing', stopPresentation);
+    return () => socket.off('stop-sharing', stopPresentation);
+  }, [isConnected, stopPresentation]);
 
   // ── Interpretation actions ────────────────────────────────
   const createChannel  = useCallback((src, tgt) => socketRef.current?.emit("create-interpretation-channel", { sourceLang: src, targetLang: tgt }), []);
   const deleteChannel  = useCallback(id => socketRef.current?.emit("delete-interpretation-channel", { channelId: id }), []);
 
-  const sendMessage = useCallback(msg => socketRef.current?.emit("send-message", { message: msg }), []);
+  const sendMessage = useCallback(data => request("chat-send", typeof data === "string" ? { message: data } : data), [request]);
   const leaveRoom = useCallback(() => { teardown(); }, [teardown]);
 
   /**
@@ -717,7 +816,6 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
     socketRef.current?.emit("end-room");
   }, []);
 
-  const myId = socketRef.current?.id;
   const iAmPresenting = presenterId === myId;
 
   // Called by the password gate: verify, cache the pass, then re-emit the
@@ -731,7 +829,7 @@ export function useWebRTC(roomId, userName, interpreterToken = null) {
   }, [roomId, userName]);
 
   return {
-    joinError, submitRoomPassword, roomEnded,
+    joinError, submitRoomPassword, roomEnded, request, background, changeBackground,
     localStream, peers, interpreterIds,
     isMuted, isVideoOff, isSharingScreen,
     messages, error, isConnected,

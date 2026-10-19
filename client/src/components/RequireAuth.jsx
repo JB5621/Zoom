@@ -1,9 +1,11 @@
 import React from "react";
-import { Navigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { LoadingScreen } from "./pageStyles";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthState";
+
+import { LoadingScreen } from "./LoadingScreen";
 
 export default function RequireAuth({ children }) {
+  const location = useLocation();
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -11,7 +13,7 @@ export default function RequireAuth({ children }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
   }
 
   return children;

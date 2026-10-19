@@ -4,6 +4,7 @@
 // ============================================================
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { LogIn } from "./icons";
 
 export default function RoomPasswordGate({ roomId, onSubmit }) {
   const [password, setPassword] = useState("");
@@ -65,6 +66,7 @@ export default function RoomPasswordGate({ roomId, onSubmit }) {
           }}
         />
         <button
+          className="icon-btn"
           onClick={handleSubmit}
           disabled={busy}
           style={{
@@ -73,7 +75,7 @@ export default function RoomPasswordGate({ roomId, onSubmit }) {
             fontWeight: 600, fontSize: "0.9rem", cursor: busy ? "default" : "pointer",
             minHeight: "44px", opacity: busy ? 0.7 : 1,
           }}
-        >{busy ? "Checking…" : "Join meeting"}</button>
+        >{busy ? "Checking…" : <><LogIn size={16} /> Join meeting</>}</button>
 
         {error && (
           <div style={{

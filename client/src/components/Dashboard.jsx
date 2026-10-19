@@ -3,10 +3,11 @@
 // ============================================================
 import React, { lazy, Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/AuthState";
 import S, { focusInput, blurInput } from "./pageStyles";
 import ThemeToggle from "./ThemeToggle";
-import { QrCode, Hash, Link2 } from "./icons";
+import ScheduledMeetings from "./ScheduledMeetings";
+import { QrCode, Hash, Link2, LogOut, Plus, LogIn } from "./icons";
 
 import {
   createRoom, getRoomCreationRequest, lookupRoom, verifyRoomPassword, parseRoomRef, isSameOrigin,
@@ -24,8 +25,7 @@ const METHODS = [
 
 export default function Dashboard() {
   const { user, submitting, logout } = useAuth();
-  const [displayName, setDisplayName] = useState("");
-  const [newPassword, setNewPassword] = useState("");
+  const [displayName, setDisplayName] = useState(user?.name || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -47,6 +47,7 @@ export default function Dashboard() {
           setCreationRequest(null);
           if (result.state === "rejected") setError("The administrator said No to your room creation request.");
           else {
+            if (result.meetingId) { navigate(`/meeting/${result.meetingId}`); return; }
             const query = new URLSearchParams({ name: creationRequest.name });
             navigate(`/room/${result.roomId}?${query.toString()}`);
           }
@@ -78,11 +79,6 @@ export default function Dashboard() {
   // rather than followed automatically.
   const [elsewhere, setElsewhere] = useState(null);
 
-  useEffect(() => {
-    if (user?.name) {
-      setDisplayName((current) => current.trim() ? current : user.name);
-    }
-  }, [user]);
 
   function resetJoinState() {
     setError("");
@@ -95,12 +91,10 @@ export default function Dashboard() {
     if (loading || creationRequest) return;
     const meetingName = displayName.trim() || user?.name || "";
     if (!meetingName) return setError("Please enter your name first.");
-    const pwd = newPassword.trim();
-    if (pwd && pwd.length < 4) return setError("Room password must be at least 4 characters.");
     setLoading(true);
     setError("");
     try {
-      const result = await createRoom(pwd);
+      const result = await createRoom();
       const request = { requestId: result.requestId, name: meetingName };
       sessionStorage.setItem(requestKey, JSON.stringify(request));
       setCreationRequest(request);
@@ -188,8 +182,8 @@ export default function Dashboard() {
           <div style={S.accountText}>Signed in as {user.name}</div>
           <div style={{ ...S.accountSubtext, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</div>
         </div>
-        <button style={S.logoutBtn} onClick={logout} disabled={submitting}>
-          Log out
+        <button className="icon-btn" style={S.logoutBtn} onClick={logout} disabled={submitting}>
+          <LogOut size={15} /> Log out
         </button>
       </div>
 
@@ -205,26 +199,15 @@ export default function Dashboard() {
           onBlur={blurInput}
         />
 
-        <label style={S.label}>Meeting password (optional)</label>
-        <input
-          type="password"
-          style={S.nameInput}
-          placeholder="Leave blank for no password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-          onFocus={focusInput}
-          onBlur={blurInput}
-        />
-
         <button
+          className="icon-btn"
           style={S.btnPrimary}
           onClick={handleCreate}
           disabled={loading || !!creationRequest}
-          onMouseEnter={(e) => { e.target.style.background = "var(--accent-hover)"; }}
-          onMouseLeave={(e) => { e.target.style.background = "var(--accent)"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--accent-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "var(--accent)"; }}
         >
-          {creationRequest ? "Waiting for admin approval…" : loading ? "Sending request…" : "Request New Meeting"}
+          {creationRequest ? "Waiting for admin approval…" : loading ? "Sending request…" : <><Plus size={16} /> Request New Meeting</>}
         </button>
 
         {creationRequest && <p role="status" style={{ color: "var(--text-2)", lineHeight: 1.6 }}>
@@ -277,13 +260,14 @@ export default function Dashboard() {
                 maxLength={8}
               />
               <button
+                className="icon-btn"
                 style={S.btnSecondary}
                 onClick={handleJoinCode}
                 disabled={loading}
-                onMouseEnter={(e) => { e.target.style.background = "var(--surface-3)"; }}
-                onMouseLeave={(e) => { e.target.style.background = "var(--surface-2)"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-3)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-2)"; }}
               >
-                Join
+                <LogIn size={16} /> Join
               </button>
             </div>
             <p style={{ color: "var(--text-3)", fontSize: "0.78rem", marginTop: "10px", marginBottom: 0, lineHeight: 1.5 }}>
@@ -309,13 +293,14 @@ export default function Dashboard() {
                 onBlur={blurInput}
               />
               <button
+                className="icon-btn"
                 style={S.btnSecondary}
                 onClick={handleJoinLink}
                 disabled={loading}
-                onMouseEnter={(e) => { e.target.style.background = "var(--surface-3)"; }}
-                onMouseLeave={(e) => { e.target.style.background = "var(--surface-2)"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-3)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-2)"; }}
               >
-                Join
+                <LogIn size={16} /> Join
               </button>
             </div>
             <p style={{ color: "var(--text-3)", fontSize: "0.78rem", marginTop: "10px", marginBottom: 0, lineHeight: 1.5 }}>
@@ -340,11 +325,12 @@ export default function Dashboard() {
               onBlur={blurInput}
             />
             <button
+              className="icon-btn"
               style={S.btnSecondary}
               onClick={() => join(pending, joinPassword)}
               disabled={loading}
             >
-              {loading ? "Checking…" : `Join ${pending.code}`}
+              {loading ? "Checking…" : <><LogIn size={16} /> Join {pending.code}</>}
             </button>
           </>
         )}
@@ -367,6 +353,7 @@ export default function Dashboard() {
         )}
       </div>
 
+      <div className="home-card" style={S.card}><ScheduledMeetings /></div>
       <p style={{ color: "var(--text-3)", fontSize: "0.78rem", marginTop: "32px", textAlign: "center" }}>
         Powered by WebRTC · Accounts stored in a local JSON database
       </p>

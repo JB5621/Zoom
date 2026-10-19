@@ -57,11 +57,11 @@ export async function verifyRoomPassword(roomId, password) {
   return data.pass;
 }
 
-export async function createRoom(password) {
+export async function createRoom(password, schedule = {}) {
   const res = await fetch(apiUrl("/api/room-requests"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("oguzmeeting_auth_token") || localStorage.getItem("zoomclone_auth_token") || ""}` },
-    body: JSON.stringify(password ? { password } : {}),
+    body: JSON.stringify({ ...schedule, ...(password ? { password } : {}) }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Room requests are unavailable. Restart the backend server and try again.");

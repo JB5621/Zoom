@@ -57,7 +57,7 @@ function buildGrid(n) {
 }
 
 // ── Draw one video frame into a canvas tile ───────────────────
-function drawTile(ctx, videoEl, rect, label, isLocal) {
+function drawTile(ctx, videoEl, rect, label, isLocal, isPresenting) {
   const { x, y, w, h } = rect;
   const videoH = h - LABEL_HEIGHT;
 
@@ -77,13 +77,13 @@ function drawTile(ctx, videoEl, rect, label, isLocal) {
     const vw = videoEl.videoWidth;
     const vh = videoEl.videoHeight;
     // cover: maintain aspect ratio
-    const scale = Math.max(w / vw, videoH / vh);
+    const scale = (isPresenting ? Math.min : Math.max)(w / vw, videoH / vh);
     const sw = vw * scale;
     const sh = vh * scale;
     const sx = x + (w - sw) / 2;
     const sy = y + (videoH - sh) / 2;
 
-    if (isLocal) {
+    if (isLocal && !isPresenting) {
       // Mirror local video
       ctx.translate(x + w, y);
       ctx.scale(-1, 1);
@@ -126,244 +126,124 @@ function drawTile(ctx, videoEl, rect, label, isLocal) {
   );
 }
 
-export function useRecorder() {
-  const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const audioCtxRef = useRef(null);
-  const sourceNodesRef = useRef([]);
-  const canvasRef = useRef(null);
-  const rafRef = useRef(null);
-  const videoElsRef = useRef([]); // [{ videoEl, label, isLocal }]
-
+export function useRecorder(participants = [], ended = false) {
+  const session = useRef(null);
+  const participantsRef = useRef(participants);
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
-  const timerRef = useRef(null);
-  const startTimeRef = useRef(0);
-  const pausedAtRef = useRef(0);
-  const isPausedRef = useRef(false);
+  const [recordingError, setRecordingError] = useState('');
 
-  function startTimer() {
-    startTimeRef.current = Date.now() - pausedAtRef.current * 1000;
-    timerRef.current = setInterval(() => {
-      setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
-    }, 500);
-  }
-  function stopTimer() { clearInterval(timerRef.current); }
-  useEffect(() => () => { stopTimer(); cancelAnimationFrame(rafRef.current); }, []);
-
-  function formatDuration(secs) {
-    const m = String(Math.floor(secs / 60)).padStart(2, "0");
-    const s = String(secs % 60).padStart(2, "0");
-    return `${m}:${s}`;
-  }
-
-  // ── Create a hidden <video> element for a stream ──────────────
-  function makeVideoEl(stream) {
-    const el = document.createElement("video");
-    el.srcObject = stream;
-    el.autoplay = true;
-    el.muted = true;
-    el.playsInline = true;
-    el.style.cssText = "position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;top:-9999px";
-    document.body.appendChild(el);
-    el.play().catch(() => {});
-    return el;
-  }
-
-  // ── Mix all audio streams into one track ──────────────────────
-  function buildMixedAudio(streams) {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const dest = audioCtx.createMediaStreamDestination();
-    const sources = [];
-    streams.forEach((s) => {
-      if (!s || s.getAudioTracks().length === 0) return;
-      try {
-        const src = audioCtx.createMediaStreamSource(s);
-        src.connect(dest);
-        sources.push(src);
-      } catch (e) { console.warn("Audio mix error:", e); }
-    });
-    audioCtxRef.current = audioCtx;
-    sourceNodesRef.current = sources;
-    return dest.stream.getAudioTracks()[0];
-  }
-
-  // ── Canvas render loop ────────────────────────────────────────
-  function startRenderLoop(canvas, entries) {
-    const ctx = canvas.getContext("2d");
-
-    function frame() {
-      if (!isPausedRef.current) {
-        // Dark background
-        ctx.fillStyle = "#0a0a0f";
-        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
-        const tiles = buildGrid(entries.length);
-        entries.forEach((entry, i) => {
-          drawTile(ctx, entry.videoEl, tiles[i], entry.label, entry.isLocal);
-        });
-
-        // Watermark
-        ctx.fillStyle = "rgba(255,255,255,0.18)";
-        ctx.font = "bold 15px Inter, sans-serif";
-        ctx.textAlign = "right";
-        ctx.textBaseline = "bottom";
-        ctx.fillText("Oguz Meeting", CANVAS_W - 16, CANVAS_H - 12);
-      }
-      rafRef.current = requestAnimationFrame(frame);
-    }
-
-    rafRef.current = requestAnimationFrame(frame);
-  }
-
-  // ── START recording ───────────────────────────────────────────
-  // participants: [{ stream, label, isLocal }]
-  const startRecording = useCallback(async (participants = []) => {
-    if (isRecording || participants.length === 0) return;
-
-    chunksRef.current = [];
-    pausedAtRef.current = 0;
-    isPausedRef.current = false;
-    setDuration(0);
-
-    // 1. Create hidden video elements for each participant
-    const entries = participants
-      .filter((p) => p.stream)
-      .map((p) => ({
-        videoEl: makeVideoEl(p.stream),
-        label: p.label,
-        isLocal: p.isLocal,
-        stream: p.stream,
-      }));
-    videoElsRef.current = entries;
-
-    // 2. Create off-screen canvas
-    const canvas = document.createElement("canvas");
-    canvas.width = CANVAS_W;
-    canvas.height = CANVAS_H;
-    canvasRef.current = canvas;
-
-    // 3. Start render loop
-    startRenderLoop(canvas, entries);
-
-    // 4. Mix all audio
-    const allStreams = entries.map((e) => e.stream);
-    const audioTrack = buildMixedAudio(allStreams);
-
-    // 5. Capture canvas + audio → composite stream
-    const canvasStream = canvas.captureStream(FPS);
-    const videoTrack = canvasStream.getVideoTracks()[0];
-    const tracks = [videoTrack, audioTrack].filter(Boolean);
-    const compositeStream = new MediaStream(tracks);
-
-    // 6. Pick best codec
-    const mimeTypes = [
-      "video/webm;codecs=vp9,opus",
-      "video/webm;codecs=vp8,opus",
-      "video/webm",
-      "video/mp4",
-    ];
-    const mimeType = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || "";
-
-    try {
-      const mr = new MediaRecorder(compositeStream, {
-        mimeType: mimeType || undefined,
-        videoBitsPerSecond: 3_000_000,  // 3 Mbps for multi-tile quality
-        audioBitsPerSecond: 128_000,
+  const syncParticipants = useCallback((list) => {
+    const current = session.current;
+    if (!current) return;
+    const wanted = new Set();
+    for (const p of list) {
+      if (!p.stream) continue;
+      const key = p.id || p.label;
+      wanted.add(key);
+      let entry = current.entries.get(key);
+      const signature = p.stream.getTracks().map(t => t.id).join(',');
+      if (entry && entry.signature === signature) { entry.label = p.label; entry.isPresenting = p.isPresenting; continue; }
+      if (entry) { entry.videoEl.srcObject = null; entry.sources?.forEach(source => source.disconnect()); }
+      const videoEl = entry?.videoEl || document.createElement('video');
+      videoEl.muted = true; videoEl.autoplay = true; videoEl.playsInline = true;
+      videoEl.srcObject = p.stream; videoEl.play().catch(() => {});
+      const sources = p.stream.getAudioTracks().map(track => {
+        const source = current.context.createMediaStreamSource(new MediaStream([track]));
+        source.connect(current.destination);
+        return source;
       });
-
-      mr.ondataavailable = (e) => {
-        if (e.data?.size > 0) chunksRef.current.push(e.data);
-      };
-
-      mr.onstop = () => {
-        // Stop render loop
-        cancelAnimationFrame(rafRef.current);
-
-        // Remove hidden video elements
-        videoElsRef.current.forEach(({ videoEl }) => {
-          videoEl.srcObject = null;
-          document.body.removeChild(videoEl);
-        });
-        videoElsRef.current = [];
-
-        // Disconnect audio
-        sourceNodesRef.current.forEach((s) => { try { s.disconnect(); } catch (_) {} });
-        sourceNodesRef.current = [];
-        try { audioCtxRef.current?.close(); } catch (_) {}
-        audioCtxRef.current = null;
-
-        // Download
-        const ext = mimeType.includes("mp4") ? "mp4" : "webm";
-        const blob = new Blob(chunksRef.current, { type: mimeType || "video/webm" });
-        const url = URL.createObjectURL(blob);
-        const now = new Date();
-        const stamp = [
-          now.getFullYear(),
-          String(now.getMonth() + 1).padStart(2, "0"),
-          String(now.getDate()).padStart(2, "0"),
-        ].join("-") + "_" + [
-          String(now.getHours()).padStart(2, "0"),
-          String(now.getMinutes()).padStart(2, "0"),
-        ].join("-");
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Oguz_Meeting_recording_${stamp}.${ext}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 15_000);
-      };
-
-      mr.start(1000);
-      mediaRecorderRef.current = mr;
-      setIsRecording(true);
-      setIsPaused(false);
-      startTimer();
-    } catch (err) {
-      console.error("MediaRecorder error:", err);
-      cancelAnimationFrame(rafRef.current);
-      videoElsRef.current.forEach(({ videoEl }) => {
-        videoEl.srcObject = null;
-        try { document.body.removeChild(videoEl); } catch (_) {}
-      });
+      current.entries.set(key, { ...p, signature, videoEl, sources });
     }
-  }, [isRecording]);
-
-  // ── PAUSE / RESUME ────────────────────────────────────────────
-  const pauseRecording = useCallback(() => {
-    if (!mediaRecorderRef.current || !isRecording) return;
-    if (isPaused) {
-      mediaRecorderRef.current.resume();
-      isPausedRef.current = false;
-      setIsPaused(false);
-      startTimer();
-    } else {
-      mediaRecorderRef.current.pause();
-      isPausedRef.current = true;
-      pausedAtRef.current = duration;
-      setIsPaused(true);
-      stopTimer();
+    for (const [key, entry] of current.entries) if (!wanted.has(key)) {
+      entry.videoEl.srcObject = null; entry.sources?.forEach(source => source.disconnect()); current.entries.delete(key);
     }
-  }, [isRecording, isPaused, duration]);
-
-  // ── STOP & DOWNLOAD ───────────────────────────────────────────
-  const stopRecording = useCallback(() => {
-    if (!mediaRecorderRef.current) return;
-    stopTimer();
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current = null;
-    setIsRecording(false);
-    setIsPaused(false);
-    isPausedRef.current = false;
-    pausedAtRef.current = 0;
-    setDuration(0);
   }, []);
 
-  return {
-    isRecording, isPaused, duration,
-    durationLabel: formatDuration(duration),
-    startRecording, pauseRecording, stopRecording,
-  };
+  useEffect(() => { participantsRef.current = participants; syncParticipants(participants); }, [participants, syncParticipants]);
+
+  const stopRecording = useCallback(() => {
+    const current = session.current;
+    if (!current) return;
+    if (current.recorder.state !== 'inactive') current.recorder.stop();
+    clearInterval(current.timer); cancelAnimationFrame(current.frame);
+    session.current = null;
+    setIsRecording(false); setIsPaused(false);
+  }, []);
+  useEffect(() => { if (ended) stopRecording(); }, [ended, stopRecording]);
+  useEffect(() => () => { stopRecording(); }, [stopRecording]);
+  useEffect(() => {
+    if (!isRecording) return;
+    const warn = event => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isRecording]);
+
+  const startRecording = useCallback(async () => {
+    if (session.current) return;
+    setRecordingError('');
+    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+      setRecordingError('Recording is unavailable in this browser.'); return;
+    }
+    let current;
+    try {
+      const context = new AudioContext();
+      const destination = context.createMediaStreamDestination();
+      const canvas = document.createElement('canvas'); canvas.width = CANVAS_W; canvas.height = CANVAS_H;
+      const captured = canvas.captureStream(FPS);
+      const composite = new MediaStream([...captured.getVideoTracks(), ...destination.stream.getAudioTracks()]);
+      const mimeType = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find(t => MediaRecorder.isTypeSupported(t));
+      current = { context, destination, composite, entries: new Map(), chunks: [], elapsed: 0, lastTick: Date.now() };
+      const recorder = new MediaRecorder(composite, { ...(mimeType ? { mimeType } : {}), videoBitsPerSecond: 3000000 });
+      current.recorder = recorder; session.current = current;
+      const release = () => {
+        cancelAnimationFrame(current.frame); clearInterval(current.timer);
+        for (const e of current.entries.values()) { e.videoEl.srcObject = null; e.sources?.forEach(source => source.disconnect()); }
+        composite.getTracks().forEach(t => t.stop()); context.close();
+      };
+      recorder.ondataavailable = event => { if (event.data.size) current.chunks.push(event.data); };
+      recorder.onerror = () => { setRecordingError('Recording stopped unexpectedly. Saving the captured portion.'); stopRecording(); };
+      recorder.onstop = () => {
+        release();
+        if (!current.chunks.length) return;
+        const type = recorder.mimeType || 'video/webm';
+        const blob = new Blob(current.chunks, { type });
+        const url = URL.createObjectURL(blob); const a = document.createElement('a');
+        a.href = url; a.download = `Oguz_Meeting_${new Date().toISOString().replace(/[:.]/g, '-')}.${type.includes('mp4') ? 'mp4' : 'webm'}`;
+        a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+      };
+      await context.resume();
+      if (session.current !== current) { release(); return; }
+      syncParticipants(participantsRef.current);
+      const ctx = canvas.getContext('2d');
+      const frame = () => {
+        if (recorder.state !== 'paused') {
+          ctx.fillStyle = '#0a0a0f'; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+          const entries = [...current.entries.values()]; const tiles = buildGrid(entries.length);
+          entries.forEach((e, i) => drawTile(ctx, e.videoEl, tiles[i], e.label, e.isLocal, e.isPresenting));
+        }
+        current.frame = requestAnimationFrame(frame);
+      };
+      recorder.start(1000); frame();
+      current.timer = setInterval(() => {
+        const now = Date.now();
+        if (recorder.state === 'recording') current.elapsed += now - current.lastTick;
+        current.lastTick = now; setDuration(Math.floor(current.elapsed / 1000));
+      }, 250);
+      setDuration(0); setIsRecording(true); setIsPaused(false);
+    } catch (error) {
+      current?.composite?.getTracks().forEach(t => t.stop()); current?.context?.close(); session.current = null;
+      setRecordingError(error.message);
+    }
+  }, [syncParticipants, stopRecording]);
+  const pauseRecording = useCallback(() => {
+    const recorder = session.current?.recorder;
+    if (!recorder) return;
+    if (recorder.state === 'paused') { recorder.resume(); setIsPaused(false); }
+    else if (recorder.state === 'recording') { recorder.pause(); setIsPaused(true); }
+  }, []);
+  return { isRecording, isPaused, duration, recordingError,
+    durationLabel: `${String(Math.floor(duration / 60)).padStart(2, '0')}:${String(duration % 60).padStart(2, '0')}`,
+    startRecording, stopRecording, pauseRecording };
 }

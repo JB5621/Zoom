@@ -1,55 +1,24 @@
 import React, { useState, useMemo } from "react";
-import { fitTiles, useElementSize } from "../hooks/useTileGrid";
+import PreJoin from './PreJoin';
+import MeetingStage from './MeetingStage';
+import MeetingTools from './MeetingTools';
+import MeetingChat from './MeetingChat';
+import { useMeetingFeatures } from '../hooks/useMeetingFeatures';
+import './meeting.css';
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useWebRTC } from "../hooks/useWebRTC";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/AuthState";
 import { useRecorder } from "../hooks/useRecorder";
 import { useInterpretation } from "../hooks/useInterpretation";
-import VideoPlayer from "./VideoPlayer";
 import Controls from "./Controls";
-import Chat from "./Chat";
 import DeviceSelector from "./DeviceSelector";
 import SharePicker from "./SharePicker";
 import RecordingIndicator from "./RecordingIndicator";
 import InterpretationPanel from "./InterpretationPanel";
-import { Monitor, VideoOff, PhoneOff } from "./icons";
+import { VideoOff, PhoneOff, LogOut, Home } from "./icons";
 import ThemeToggle from "./ThemeToggle";
 import InvitePanel from "./InvitePanel";
 import RoomPasswordGate from "./RoomPasswordGate";
-
-function PresentationView({ stream, presenterName, iAmPresenting, onStop }) {
-  const ref = React.useRef(null);
-  React.useEffect(() => { if (ref.current && stream) { ref.current.srcObject = stream; ref.current.play().catch(e => console.error("play error:", e)); } }, [stream]);
-  return (
-    <div style={{ position:"relative",flex:1,background:"var(--well)",borderRadius:"10px",overflow:"hidden",
-      border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",minHeight:0 }}>
-      {stream
-        ? <video ref={ref} autoPlay playsInline style={{ width:"100%",height:"100%",objectFit:"contain" }} />
-        : <div style={{ textAlign:"center",color:"var(--on-well)" }}>
-            <Monitor size={48} style={{ marginBottom:"12px" }} />
-            <p>Receiving {presenterName}'s screen…</p>
-          </div>
-      }
-      <div style={{ position:"absolute",top:14,left:14,display:"flex",alignItems:"center",gap:"8px",
-        background:"var(--chip-dark)",
-        borderRadius:"8px",padding:"6px 12px" }}>
-        <div style={{ width:8,height:8,borderRadius:"50%",background:"var(--success)",
-          animation:"pulse 1.5s infinite" }} />
-        <span style={{ color:"#fff",fontSize:"0.82rem",fontWeight:500 }}>
-          {iAmPresenting ? "You are presenting" : `${presenterName} is presenting`}
-        </span>
-      </div>
-      {iAmPresenting && (
-        <button onClick={onStop} style={{ position:"absolute",top:14,right:14,background:"var(--danger)",
-          border:"none",borderRadius:"8px",color:"var(--on-accent)",padding:"8px 16px",
-          fontWeight:600,fontSize:"0.85rem",cursor:"pointer" }}>
-          Stop Sharing
-        </button>
-      )}
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
-    </div>
-  );
-}
 
 /**
  * The host's way out. Ending the meeting cannot be undone and takes
@@ -80,26 +49,28 @@ function LeavePrompt({ participantCount, onEndForEveryone, onJustLeave, onCancel
         </p>
 
         <button
+          className="icon-btn"
           onClick={onEndForEveryone}
           style={{ ...button, background:"var(--danger)",border:"1px solid var(--danger)",
             color:"var(--on-accent)" }}
           onMouseEnter={(e) => { e.currentTarget.style.background = "var(--danger-hover)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "var(--danger)"; }}
         >
-          End for everyone
+          <PhoneOff size={16} /> End for everyone
         </button>
         <p style={{ color:"var(--text-3)",fontSize:"0.76rem",lineHeight:1.5,margin:"-4px 0 14px" }}>
           Removes everyone and closes the room. The code stops working.
         </p>
 
         <button
+          className="icon-btn"
           onClick={onJustLeave}
           style={{ ...button, background:"var(--surface-2)",
             border:"1px solid var(--border-strong)",color:"var(--text-1)" }}
           onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-3)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-2)"; }}
         >
-          Just leave
+          <LogOut size={16} /> Just leave
         </button>
         <p style={{ color:"var(--text-3)",fontSize:"0.76rem",lineHeight:1.5,margin:"-4px 0 14px" }}>
           The meeting carries on without you and someone else becomes host.
@@ -117,24 +88,16 @@ function LeavePrompt({ participantCount, onEndForEveryone, onJustLeave, onCancel
   );
 }
 
-// Stable object references so VideoPlayer's React.memo can actually
-// skip re-rendering tiles whose own props haven't changed. The grid tile
-// style is derived from the measured container, so it is memoised in the
-// component instead of living up here.
-const SIDEBAR_TILE_STYLE = { width: "100%", aspectRatio: "16/9", borderRadius: "clamp(8px, 2vw, 12px)" };
-const GRID_GAP = 12;
-
-// Room chrome reserves the real toolbar height (published by Controls),
-// falling back to a sane value for the first paint.
-const BELOW_GRID = `calc(var(--controls-h, 88px) + 12px)`;
-
-function Clock() {
-  const [t, setT] = React.useState(new Date());
-  React.useEffect(() => { const id = setInterval(() => setT(new Date()), 1000); return () => clearInterval(id); }, []);
-  return <span style={{ color:"var(--text-2)",fontSize:"0.82rem" }}>{t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>;
-}
-
 export default function Room() {
+  const { roomId } = useParams();
+  return <MeetingEntry key={roomId} />;
+}
+function MeetingEntry() {
+  const [media, setMedia] = useState(null);
+  const { user } = useAuth();
+  return media ? <RoomCall initialMedia={media} /> : <PreJoin name={user?.name || 'Guest'} onJoin={setMedia} />;
+}
+function RoomCall({ initialMedia }) {
   const { roomId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -154,7 +117,7 @@ export default function Room() {
     localStream, peers, interpreterIds,
     isMuted, isVideoOff, isSharingScreen,
     messages, error, isConnected,
-    presenterId, iAmPresenting, presenterPeer, someoneIsPresenting,
+    presenterId,
     // Interpretation state (from useWebRTC now)
     channels, adminId, isAdmin, adminTokens,
     createChannel, deleteChannel,
@@ -166,14 +129,23 @@ export default function Room() {
     startPresentation, stopPresentation,
     sendMessage, leaveRoom, endRoomForAll,
     mySocketId, socketRef,
-    joinError, submitRoomPassword, roomEnded,
-  } = useWebRTC(roomId, userName);
+    joinError, submitRoomPassword, roomEnded, request, background, changeBackground,
+  } = useWebRTC(roomId, userName, null, initialMedia);
 
-  const { isRecording, isPaused, durationLabel, startRecording, pauseRecording, stopRecording } = useRecorder();
-
-  // Measured video area -> tile size. Re-runs when the window resizes, the
-  // device rotates, or the chat panel opens and takes width away.
-  const [gridRef, gridSize] = useElementSize();
+  const [layout, setLayout] = useState('gallery');
+  const [pinned, setPinned] = useState(null);
+  const [readMessageId, setReadMessageId] = useState(null);
+  const features = useMeetingFeatures({ socketRef, isConnected, request, isMuted, roomId });
+  const recordingParticipants = useMemo(() => [
+    { id: 'local', stream: localStream, label: userName, isLocal: true, isPresenting: isSharingScreen },
+    ...Object.entries(peers).filter(([id]) => !interpreterIds.has(id)).map(([id, p]) => ({ id, stream: p.stream, label: p.userName || 'Guest', isLocal: false, isPresenting: id === presenterId })),
+  ], [localStream, userName, peers, interpreterIds, isSharingScreen, presenterId]);
+  const { isRecording, isPaused, durationLabel, recordingError, startRecording, pauseRecording, stopRecording } = useRecorder(recordingParticipants, roomEnded);
+  React.useEffect(() => {
+    if (features.move) { stopRecording(); leaveRoom(); navigate(`/room/${features.move.roomId}?name=${encodeURIComponent(userName)}`); }
+  }, [features.move, leaveRoom, navigate, stopRecording, userName]);
+  const unread = showChat ? 0 : messages.slice(readMessageId ? Math.max(0, messages.findIndex(m => m.id === readMessageId) + 1) : 0).filter(m => m.from !== mySocketId).length;
+  function closeChat() { setReadMessageId(messages.at(-1)?.id || null); setShowChat(false); }
 
   // Audio routing only — no socket needed
   const { selectedChannelId, selectChannel } = useInterpretation(channels, peers);
@@ -184,17 +156,6 @@ export default function Room() {
   [peers, interpreterIds]);
 
   const totalParticipants = 1 + peerList.length;
-
-  const grid = fitTiles(totalParticipants, gridSize.width, gridSize.height, GRID_GAP);
-  const gridTileStyle = useMemo(
-    () => (grid.ready
-      // Explicit px keeps every tile a true 16:9 box. The old style set a
-      // minHeight alongside aspectRatio, and the minHeight won — tiles came
-      // out at roughly 1.3:1 and object-fit cropped the sides off the video.
-      ? { width: `${grid.width}px`, height: `${grid.height}px` }
-      : { width: "100%", aspectRatio: "16/9" }),
-    [grid.ready, grid.width, grid.height]
-  );
 
   function handleLeave() {
     // A participant leaving affects nobody else, so it needs no
@@ -229,13 +190,7 @@ export default function Room() {
     if (isRecording) {
       stopRecording();
     } else {
-      const participants = [
-        { stream: localStream, label: userName, isLocal: true },
-        ...peerList.filter(([,p]) => p.stream).map(([,p]) => ({
-          stream: p.stream, label: p.userName || "Guest", isLocal: false,
-        })),
-      ];
-      startRecording(participants);
+      startRecording();
     }
   }
 
@@ -250,11 +205,11 @@ export default function Room() {
         Room <strong style={{ color:"var(--text-1)",letterSpacing:"0.1em" }}>{roomId}</strong> is
         closed and its code no longer works. Starting a new meeting gives you a new code.
       </p>
-      <button onClick={() => navigate("/dashboard")} style={{ marginTop:"8px",padding:"12px 28px",
+      <button className="icon-btn" onClick={() => navigate("/dashboard")} style={{ marginTop:"8px",padding:"12px 28px",
         background:"var(--accent)",border:"none",
         borderRadius:"8px",color:"var(--on-accent)",cursor:"pointer",fontFamily:"inherit",
         fontSize:"0.95rem",fontWeight:600,minHeight:"44px" }}>
-        Back to dashboard
+        <Home size={16} /> Back to dashboard
       </button>
     </div>
   );
@@ -277,7 +232,7 @@ export default function Room() {
     <div style={{ minHeight: "100vh", display: "grid", placeContent: "center", padding: 32, textAlign: "center", background: "var(--bg)", color: "var(--text-1)" }}>
       <h2>{joinError.code === "pending" ? "Waiting for approval" : "Unable to join"}</h2>
       <p>{joinError.message}</p>
-      <button onClick={() => navigate("/dashboard")}>Back to dashboard</button>
+      <button className="icon-btn" onClick={() => navigate("/dashboard")}><Home size={16} /> Back to dashboard</button>
     </div>
   );
 
@@ -302,7 +257,7 @@ export default function Room() {
         <div style={{ display:"flex",alignItems:"center",gap:"clamp(6px, 2vw, 10px)",minWidth:0 }}>
           <span style={{ fontWeight:800,
             fontSize:"clamp(0.95rem, 3vw, 1.2rem)",
-            color:"var(--text-1)" }}>Oguz Meeting</span>
+            color:"var(--text-1)" }}>{features.state.title || "Oguz Meeting"}</span>
           {isAdmin && (
             <span style={{ background:"var(--warn-soft)",border:"1px solid var(--warn-border)",
               borderRadius:"6px",padding:"clamp(2px, 1vw, 3px) clamp(6px, 1vw, 10px)",color:"var(--warn-text)",
@@ -329,7 +284,7 @@ export default function Room() {
               </div>
             ) : null;
           })()}
-          <Clock />
+
           <span style={{ color:"var(--text-2)",fontSize:"clamp(0.7rem, 1.5vw, 0.82rem)",padding:"clamp(2px, 1vw, 4px) clamp(6px, 1vw, 10px)",
             background:"var(--surface-2)",borderRadius:"6px",
             border:"1px solid var(--border)",whiteSpace:"nowrap" }}>{roomId}</span>
@@ -337,64 +292,15 @@ export default function Room() {
         </div>
       </div>
 
-      {/* Main */}
-      <div className="room-main-shell" style={{ flex:1,display:"flex",overflow:"hidden",minHeight:0 }}>
-        {someoneIsPresenting ? (
-          <div className="room-presenting-layout" style={{ flex:1,display:"flex",gap:"clamp(8px, 2vw, 12px)",
-            padding:`clamp(12px, 3vw, 16px) clamp(12px, 3vw, 16px) ${BELOW_GRID}`,
-            overflow:"hidden",minHeight:0,flexDirection:"row",
-            marginRight:showChat?"clamp(280px, 30vw, 340px)":0,
-            transition:"margin-right 0.25s" }}>
-            <PresentationView
-              stream={iAmPresenting ? localStream : presenterPeer?.stream || null}
-              presenterName={iAmPresenting ? userName : presenterPeer?.userName || "Presenter"}
-              iAmPresenting={iAmPresenting} onStop={stopPresentation}
-            />
-            <div className="room-presenting-sidebar" style={{ width:"clamp(150px, 20vw, 200px)",
-              display:"flex",flexDirection:"column",gap:"clamp(6px, 2vw, 10px)",overflowY:"auto",
-              flexShrink:0 }}>
-              {!iAmPresenting && (
-                <VideoPlayer stream={localStream} label={userName} isMuted={isMuted}
-                  isVideoOff={isVideoOff} isLocal={true} isAdmin={isAdmin} speakerId={activeSpeakerId}
-                  style={SIDEBAR_TILE_STYLE} />
-              )}
-              {peerList.map(([sid,p]) => (
-                <VideoPlayer key={sid} peerId={sid} stream={p.stream}
-                  label={p.userName||sid.slice(0,6)} isMuted={p.isMuted}
-                  isVideoOff={p.isVideoOff} isLocal={false} isAdmin={sid === adminId} speakerId={activeSpeakerId}
-                  style={SIDEBAR_TILE_STYLE} />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div ref={gridRef} className="room-grid-layout" style={{ flex:1,
-            padding:"clamp(12px, 3vw, 20px)",
-            paddingBottom:BELOW_GRID,
-            // Only scroll once tiles have hit their minimum size; otherwise
-            // everyone fits and a scrollbar would just be a way to lose people.
-            overflowX:"hidden",overflowY:grid.scroll?"auto":"hidden",
-            scrollbarGutter:"stable",
-            marginRight:showChat?"clamp(280px, 30vw, 340px)":0,
-            transition:"margin-right 0.25s",
-            display:"flex",alignItems:grid.scroll?"flex-start":"center",justifyContent:"center" }}>
-            <div style={{ display:"grid",justifyContent:"center",alignContent:"center",
-              gridTemplateColumns:grid.ready?`repeat(${grid.cols}, ${grid.width}px)`:"1fr",
-              gap:`${GRID_GAP}px` }}>
-              <VideoPlayer stream={localStream} label={userName} isMuted={isMuted}
-                isVideoOff={isVideoOff} isLocal={true} isAdmin={isAdmin} speakerId={activeSpeakerId}
-                style={gridTileStyle} />
-              {peerList.map(([sid,p]) => (
-                <VideoPlayer key={sid} peerId={sid} stream={p.stream}
-                  label={p.userName||sid.slice(0,6)} isMuted={p.isMuted}
-                  isVideoOff={p.isVideoOff} isLocal={false} isAdmin={sid === adminId} speakerId={activeSpeakerId}
-                  style={gridTileStyle} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {showChat && <Chat messages={messages} onSend={sendMessage} mySocketId={mySocketId} onClose={() => setShowChat(false)} />}
-      </div>
+      <MeetingTools features={features} isAdmin={isAdmin} myId={mySocketId} layout={layout} setLayout={setLayout}
+        pinned={pinned} setPinned={setPinned} background={background} changeBackground={changeBackground}
+        unread={unread} openChat={() => setShowChat(true)} />
+      {recordingError && <div className="meeting-notice" role="alert">{recordingError}</div>}
+      <MeetingStage localStream={localStream} peers={peers} interpreterIds={interpreterIds} myId={mySocketId}
+        name={userName} muted={isMuted} videoOff={isVideoOff} speakerId={activeSpeakerId} adminId={adminId}
+        layout={layout} pinned={pinned} setPinned={setPinned} spotlightId={features.state.spotlightId}
+        presenterId={presenterId} isSharingScreen={isSharingScreen} stopPresentation={stopPresentation} />
+      {showChat && <MeetingChat messages={messages} onSend={sendMessage} myId={mySocketId} participants={features.state.participants} onClose={closeChat} />}
 
       <RecordingIndicator isRecording={isRecording} isPaused={isPaused}
         durationLabel={durationLabel} onPause={pauseRecording} onStop={stopRecording} />
@@ -404,8 +310,8 @@ export default function Room() {
         showChat={showChat} isRecording={isRecording}
         isInterpreterActive={!!selectedChannelId}
         onToggleMute={toggleMute} onToggleVideo={toggleVideo}
-        onToggleScreen={() => isSharingScreen ? stopPresentation() : setShowSharePicker(true)}
-        onToggleChat={() => setShowChat(v => !v)}
+        onToggleScreen={() => isSharingScreen ? stopPresentation() : !features.state.allowScreenShare && !isAdmin ? features.setNotice("Screen sharing is restricted to the host.") : setShowSharePicker(true)}
+        onToggleChat={() => showChat ? closeChat() : setShowChat(true)}
         onOpenSettings={() => setShowSettings(true)}
         onToggleRecord={handleToggleRecord}
         onOpenInterpretation={() => setShowInterpretation(true)}
@@ -433,7 +339,7 @@ export default function Room() {
 
       {showSharePicker && (
         <SharePicker
-          onShare={s => { setShowSharePicker(false); startPresentation(s); }}
+          onShare={s => { setShowSharePicker(false); startPresentation(s).catch(e => features.setNotice(e.message)); }}
           onClose={() => setShowSharePicker(false)}
         />
       )}

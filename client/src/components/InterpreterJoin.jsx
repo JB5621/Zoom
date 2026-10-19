@@ -5,9 +5,12 @@
 // ============================================================
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import S, { LoadingScreen, focusInput, blurInput } from "./pageStyles";
+import { useAuth } from "../context/AuthState";
+import S, { focusInput, blurInput } from "./pageStyles";
+import { LoadingScreen } from "./LoadingScreen";
 import ThemeToggle from "./ThemeToggle";
+import { Headphones } from "./icons";
+import { apiUrl } from "../lib/roomAccess";
 
 export default function InterpreterJoin() {
   const [searchParams] = useSearchParams();
@@ -17,22 +20,18 @@ export default function InterpreterJoin() {
 
   const [channelInfo, setChannelInfo] = useState(null);
   const [userName, setUserName] = useState(user?.name || "");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(!!token);
+  const [error, setError] = useState(token ? "" : "No invite token found in link.");
 
   useEffect(() => {
-    if (!token) { setError("No invite token found in link."); setLoading(false); return; }
-    fetch(`/api/interpreter-token/${token}`)
+    if (!token) return;
+    const controller = new AbortController();
+    fetch(apiUrl(`/api/interpreter-token/${encodeURIComponent(token)}`), { signal: controller.signal })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => { setChannelInfo(data); setLoading(false); })
-      .catch(() => { setError("This invite link is invalid or has expired."); setLoading(false); });
+      .catch(() => { if (!controller.signal.aborted) { setError("This invite link is invalid or has expired."); setLoading(false); } });
+    return () => controller.abort();
   }, [token]);
-
-  useEffect(() => {
-    if (user?.name && !userName) {
-      setUserName(user.name);
-    }
-  }, [user, userName]);
 
   function handleJoin() {
     if (!userName.trim()) return setError("Please enter your name.");
@@ -92,8 +91,8 @@ export default function InterpreterJoin() {
           onFocus={focusInput}
           onBlur={blurInput}
         />
-        <button style={S.btnPrimary} onClick={handleJoin}>
-          Join as Interpreter
+        <button className="icon-btn" style={S.btnPrimary} onClick={handleJoin}>
+          <Headphones size={16} /> Join as Interpreter
         </button>
         {error && <div style={S.error}>{error}</div>}
       </div>

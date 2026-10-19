@@ -4,19 +4,19 @@ A fully functional video conferencing app built with:
 - **React 19** (frontend with modern UI)
 - **Node.js + Express** (backend signaling server)
 - **Socket.io** (real-time WebRTC signaling)
-- **WebRTC** (peer-to-peer video & audio)
+- **mediasoup SFU** (WebRTC media forwarding)
 - **Language Interpretation** (real-time translation support)
 
 ### ✨ Features
 
-- 📹 **HD Video Conferencing** — Peer-to-peer WebRTC connections
+- 📹 **HD Video Conferencing** — WebRTC media through a mediasoup SFU
 - 🎙️ **Screen Sharing** — Share your screen with participants
 - 💬 **Live Chat** — Text messaging during meetings
 - 🌐 **Language Interpretation** — Support for 35+ languages including Turkmen & Russian
 - 🎥 **Recording** — Record meetings locally
 - 🎨 **Modern UI** — Dark, video-first interface driven by CSS design tokens (see `client/src/index.css`), so the whole app can be rethemed from one block
 - 🔐 **Login System** — Local accounts stored in a JSON database on the server
-- 🔐 **Secure** — P2P encryption, no server recording
+- 🔐 **Media transport** — Encrypted browser-to-SFU connections; recordings download locally
 
 ---
 
@@ -63,7 +63,7 @@ oguz-meeting/
 ## 🚀 Development Setup
 
 ### Prerequisites
-- Node.js 16+
+- Node.js 22.12+
 - npm or yarn
 
 ### Step 1 — Install Server Dependencies
@@ -214,25 +214,11 @@ PORT=5000
 
 ---
 
-## 📡 Adding a TURN Server (Production)
+## Media deployment
 
-WebRTC P2P fails behind some corporate firewalls without a TURN server.
-In `useWebRTC.js`, add your TURN credentials to `ICE_SERVERS`:
-
-```js
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    {
-      urls: "turn:your-turn-server.com:3478",
-      username: "your_username",
-      credential: "your_password",
-    },
-  ],
-};
-```
-
-Free TURN providers: **Metered.ca**, **Twilio**, **Xirsys**
+The backend forwards media through mediasoup. Configure `MEDIASOUP_ANNOUNCED_IP`
+to a reachable address and open the configured UDP/TCP media port range. An HTTP
+reverse proxy alone does not forward those media ports. See `server/.env.example`.
 
 ---
 
@@ -240,10 +226,10 @@ Free TURN providers: **Metered.ca**, **Twilio**, **Xirsys**
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, React Router v6 |
+| Frontend | React 19, React Router v7 |
 | Backend | Node.js, Express 4 |
 | Real-time | Socket.io 4 |
-| Video/Audio | WebRTC (browser native) |
+| Video/Audio | WebRTC with mediasoup SFU |
 | Styling | CSS-in-JS (inline styles) |
 | Fonts | Syne + DM Sans (Google Fonts) |
 
@@ -256,16 +242,66 @@ Admin sessions are separate from user accounts and expire after eight hours.
 
 The panel supports adding/deleting users, changing each user's room-creation
 permission, creating rooms for a selected user, deleting rooms, viewing connected
-participants/interpreters, removing users from rooms, and approving/rejecting joins.
+participants/interpreters, removing users from rooms, and approving/rejecting room creation requests.
 Each user request for a new room appears as an alert in `/admin` with **Accept request**
 and **Reject request** buttons. No room is created before approval. The requesting
 user waits on the dashboard and enters automatically after Yes, or sees a rejection
 message after No. Requests are retained for up to 24 hours while the server runs;
 the dashboard remembers the pending request across refreshes in the same tab.
-Admins can also create rooms directly for users. Room creators are automatically
-approved to join; everyone else waits for administrator join approval. Rejected or removed accounts cannot rejoin that room. The panel refreshes
+Admins can also create rooms directly for users. Signed-in participants and invited interpreters join automatically. Protected rooms still require a password. Removed accounts cannot rejoin that room. The panel refreshes
 every three seconds. User accounts and creation permissions persist in the local
 JSON database; rooms and room approvals last until the server restarts.
 
 Run the isolated API/socket authorization test with `node --test server/test/admin.cjs`.
 The test uses a temporary database and stubs media workers; it does not test live audio/video.
+
+## Expanded meeting features
+
+- **Pre-join screen:** preview video, test microphone levels and speaker output,
+  select devices, and join with audio/video off or without devices.
+- **Participants:** search attendees, raise/lower hands, and show microphone status.
+- **Layouts:** gallery, active-speaker view, local pinning, and host spotlighting.
+- **Host controls:** mute individuals/all others, remove users, restrict screen sharing,
+  and lock admission. Participants choose when to unmute; existing attendees can reconnect.
+- **Reactions:** temporary emoji reactions visible to the meeting.
+- **Scheduling:** titles, local date/time, descriptions, duration, persistent invitation
+  links, weekly calendar recurrence, and downloadable `.ics` invitations. Schedule
+  requests require administrator approval. Only the organizer starts a session;
+  its invitation link can be used again after a session ends.
+- **Chat:** public and private messages, unread counts, downloads, and attachments up
+  to 512 KB. New arrivals receive the latest 100 public text messages. Attachments
+  and private messages are delivered live; each tab keeps its latest 200 messages.
+- **Recording:** local composite video and mixed audio, updated as participants and
+  tracks change; pause/resume and automatic download on leaving or meeting closure.
+  Keep the tab open until the download finishes. Closing the browser can lose a recording.
+- **Backgrounds:** local person segmentation with blur, a studio background, or an
+  uploaded image (up to 8 MB). Initial setup fetches MediaPipe WASM/model assets.
+  To host those assets yourself, set `VITE_MEDIAPIPE_WASM_URL` and
+  `VITE_SEGMENTATION_MODEL_URL` before building. Segmentation runs at 640×360, 15 fps.
+- **Breakout rooms:** hosts create up to eight rooms, assign participants, and close
+  rooms to bring everyone back. Assigned users can also return to the main meeting.
+- **Captions:** display shared captions and opt in to transcribing your microphone
+  through browser speech recognition. Recognition may use the browser provider's
+  online service; language availability varies. This is speech-to-text, not automatic
+  translation. The existing human-interpreter channels remain available.
+- **Recovery and sharing:** capture tracks survive socket reconnects; tab audio is
+  played separately from microphone audio and included in local recordings.
+
+The dashboard has no optional meeting-password field. Administrators can still
+create protected rooms, and joining those rooms still requires their password.
+
+### Validation
+
+```sh
+npm run lint --prefix client
+npm run build --prefix client
+npm test --prefix server
+npm run test:e2e --prefix client
+```
+
+Browser tests use a temporary data directory, fake cameras/microphones, and a real
+mediasoup worker. Install Chrome at `/usr/bin/google-chrome`, or set `CHROME_PATH`.
+They exercise two-party media, reconnection, screen/tab-audio sharing, host controls,
+chat, recording downloads, and breakout transfers. Set `TEST_BACKGROUND=1` to also
+exercise the real background model download; that additional check needs internet.
+No live speech-recognition service or physical camera is required by the default tests.
